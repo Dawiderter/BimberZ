@@ -1,13 +1,13 @@
 use super::color::Color;
 
 #[derive(Debug, Clone)]
-pub struct FrameBuffer {
+pub struct PixelBuffer {
     buffer: Vec<Color>,
     width: u32,
     height: u32,
 }
 
-impl FrameBuffer {
+impl PixelBuffer {
     pub fn new(width: u32, height: u32) -> Self {
         let buffer = vec![Color::BLACK; width as usize * height as usize];
         Self {

@@ -1,5 +1,4 @@
 use bimberz::drawing::{window::Window, color::Color};
-use tracing::info;
 use winit::{keyboard::KeyCode, event::MouseButton};
 
 fn main() {
