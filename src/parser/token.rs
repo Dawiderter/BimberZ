@@ -1,8 +1,9 @@
 use std::fmt::Display;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TokenType {
-    Number,
+    Real,
+    Integer,
     Plus,
     Minus,
     Star,
@@ -27,13 +28,15 @@ pub enum TokenType {
     Let,
     True,
     False,
-    Newline
+    Newline,
+    Print
 }
 
 impl Display for TokenType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let printable = match self {
-            TokenType::Number => "Number",
+            TokenType::Real => "Real",
+            TokenType::Integer => "Integer",
             TokenType::Plus => "Plus",
             TokenType::Minus => "Minus",
             TokenType::Star => "Star",
@@ -59,12 +62,13 @@ impl Display for TokenType {
             TokenType::True => "True",
             TokenType::False => "False",
             TokenType::Newline => "Newline",
+            TokenType::Print => "Print",
         };
         write!(f, "{}", printable)
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,

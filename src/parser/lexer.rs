@@ -9,13 +9,18 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "let" => TokenType::Let,
     "true" => TokenType::True,
     "false" => TokenType::False,
+    "print" => TokenType::Print,
 };
 
 pub struct Lexer<'a> {
     content: &'a [char],
+    current_line: u64,
 }
 
 impl<'a> Lexer<'a> {
+    pub fn new(content: &'a [char]) -> Self {
+        Self { content, current_line: 0 }
+    }
     fn chop(&mut self, len: usize) -> String {
         let lexeme = self.content[0..len].iter().collect();
         self.content = &self.content[len..];
@@ -61,8 +66,8 @@ impl<'a> Lexer<'a> {
         Some(self.content[offset])
     }
 
-    fn parse_number(&mut self) -> String {
-        self.chop_while(|c| c.is_ascii_digit())
+    fn parse_number(&mut self) -> (TokenType, String) {
+        (TokenType::Integer, self.chop_while(|c| c.is_ascii_digit()))
     }
 
     pub fn next_token(&mut self) -> Option<Result<Token, Error>> {
@@ -73,8 +78,8 @@ impl<'a> Lexer<'a> {
         }
 
         if self.content[0].is_numeric() {
-            let num = self.parse_number();
-            return Some(Ok(Token::new(TokenType::Number, num)));
+            let (token_type, num) = self.parse_number();
+            return Some(Ok(Token::new(token_type, num)));
         }
 
         if self.content[0].is_alphabetic() {
@@ -108,7 +113,10 @@ impl<'a> Lexer<'a> {
             '}' => Some(Ok(Token::new(TokenType::RightCurlyBracket, self.chop(1)))),
             ',' => Some(Ok(Token::new(TokenType::Comma, self.chop(1)))),
             '.' => Some(Ok(Token::new(TokenType::Dot, self.chop(1)))),
-            '\n' => Some(Ok(Token::new(TokenType::Newline, self.chop(1)))),
+            '\n' => {
+                self.current_line += 1;
+                Some(Ok(Token::new(TokenType::Newline, self.chop(1))))
+            }
             _ => Some(Err(Error {
                 message: format!("Unknown token '{}'", self.chop(1)),
             })),
@@ -121,5 +129,36 @@ impl<'a> Iterator for Lexer<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.next_token()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test1() {
+        let code = "let x = 5;".chars().collect::<Vec<char>>();
+        let mut lexer = Lexer {
+            content: code.as_slice(),
+            current_line: 0,
+        };
+
+        assert_eq!(
+            lexer.next_token().unwrap().unwrap(),
+            Token::new(TokenType::Let, "let".to_string())
+        );
+        assert_eq!(
+            lexer.next_token().unwrap().unwrap(),
+            Token::new(TokenType::Identifier, "x".to_string())
+        );
+        assert_eq!(
+            lexer.next_token().unwrap().unwrap(),
+            Token::new(TokenType::Equals, "=".to_string())
+        );
+        assert_eq!(
+            lexer.next_token().unwrap().unwrap(),
+            Token::new(TokenType::Integer, "5".to_string())
+        );
     }
 }
