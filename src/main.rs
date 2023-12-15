@@ -1,4 +1,4 @@
-use bimberz::drawing::{window::Window, color::Color};
+use bimberz::drawing::{window::Window, color::Color, shapes::{circle::{Circle}, composite::{ShapeUnion, ShapeDiff}}};
 use tracing::info;
 use winit::{keyboard::KeyCode, event::MouseButton};
 
@@ -38,8 +38,17 @@ fn main() {
 
         if frame.is_mouse_pressed(MouseButton::Left) {
             let (mouse_x, mouse_y) = frame.mouse_position();
-            x = mouse_x as i32 / 5;
-            y = mouse_y as i32 / 5;
+            let x = mouse_x as i32 / 5;
+            let y = mouse_y as i32 / 5;
+
+            let circle_a = Circle { center: (x,y), radius: 15 };
+            let circle_b = Circle { center: (x,y), radius: 5};
+            let diff = ShapeDiff { a: circle_a, b: circle_b };
+            let circle_c = Circle {center: (x + 10, y), radius: 10};
+            let union  = ShapeDiff {a: diff, b: circle_c};
+
+
+            frame.draw_shape_stroke(&union, Color::WHITE);
         }
 
 

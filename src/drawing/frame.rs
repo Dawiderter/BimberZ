@@ -1,6 +1,6 @@
 use delegate::delegate;
 
-use super::{pixelbuffer::PixelBuffer, input::{Input, self}, color::Color};
+use super::{pixelbuffer::PixelBuffer, input::{Input, self}, color::Color, shapes::shape::Shape};
 
 pub struct Frame {
     pub(crate) buffer: PixelBuffer,
@@ -19,6 +19,8 @@ impl Frame {
             pub fn width(&self) -> u32;
             pub fn height(&self) -> u32;
             pub fn put_pixel(&mut self, x: u32, y: u32, color: Color);
+            pub fn draw_shape_filled(&mut self, shape: &impl Shape, color: Color);
+            pub fn draw_shape_stroke(&mut self, shape: &impl Shape, color: Color);
             pub fn clear(&mut self, color: Color);
         }
     }

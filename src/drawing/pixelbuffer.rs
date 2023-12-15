@@ -1,4 +1,4 @@
-use super::color::Color;
+use super::{color::Color, shapes::shape::Shape};
 
 #[derive(Debug, Clone)]
 pub struct PixelBuffer {
@@ -41,6 +41,35 @@ impl PixelBuffer {
 
     pub fn put_pixel(&mut self, x: u32, y: u32, color: Color) {
         self.buffer[(x + y * self.width) as usize] = color;
+    }
+
+    pub fn draw_shape_filled(&mut self, shape: &impl Shape, color: Color) {
+        let (top_left, bot_right) = shape.bounding_box();
+        let top_left = (top_left.0.max(0) as u32, top_left.1.max(0) as u32);
+        let bot_right = (bot_right.0.min(self.width() as i32 - 1) as u32, bot_right.1.min(self.height() as i32 - 1) as u32);
+
+        for x in top_left.0..=bot_right.0 {
+            for y in top_left.1..=bot_right.1 {
+                if shape.dist(x as i32, y as i32) < 0.5 {
+                    self.put_pixel(x, y, color);
+                }
+            }
+        }
+    }
+
+    pub fn draw_shape_stroke(&mut self, shape: &impl Shape, color: Color) {
+        let (top_left, bot_right) = shape.bounding_box();
+        let top_left = (top_left.0.max(0) as u32, top_left.1.max(0) as u32);
+        let bot_right = (bot_right.0.min(self.width() as i32 - 1) as u32, bot_right.1.min(self.height() as i32 - 1) as u32);
+
+        for x in top_left.0..=bot_right.0 {
+            for y in top_left.1..=bot_right.1 {
+                let d = shape.dist(x as i32, y as i32); 
+                if (-0.5..0.5).contains(&d) {
+                    self.put_pixel(x, y, color);
+                }
+            }
+        }
     }
 
     pub fn get_pixel(&self, x: u32, y: u32) -> Color {
