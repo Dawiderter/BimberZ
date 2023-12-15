@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use super::{
     error::Error,
     token::{Token, TokenType},
@@ -8,6 +10,16 @@ pub enum Value {
     Integer(u64),
     Real(f64),
     Boolean(bool),
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Integer(int) => write!(f, "{}", int),
+            Value::Real(real) => write!(f, "{}", real),
+            Value::Boolean(bool) => write!(f, "{}", bool),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
