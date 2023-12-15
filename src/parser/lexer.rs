@@ -10,6 +10,8 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "true" => TokenType::True,
     "false" => TokenType::False,
     "print" => TokenType::Print,
+    "or" => TokenType::Or,
+    "and" => TokenType::And,
 };
 
 pub struct Lexer<'a> {
