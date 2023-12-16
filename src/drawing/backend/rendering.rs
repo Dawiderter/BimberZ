@@ -1,4 +1,6 @@
-use crate::drawing::framebuffer;
+use tracing::info;
+
+use crate::drawing::pixelbuffer;
 
 pub struct RenderState {
     pub surface: wgpu::Surface,
@@ -26,7 +28,7 @@ impl RenderState {
             .await
             .unwrap();
 
-        //info!("{:?}", adapter.get_info());
+        info!("{:?}", adapter.get_info());
 
         let (device, queue) = adapter
             .request_device(
@@ -193,7 +195,7 @@ impl RenderState {
         }
     }
 
-    pub fn write_buffer_to_screen(&mut self, buffer: &framebuffer::FrameBuffer) {
+    pub fn write_buffer_to_screen(&mut self, buffer: &pixelbuffer::PixelBuffer) {
         let data = buffer.inner_buffer();
 
         self.queue.write_texture(
