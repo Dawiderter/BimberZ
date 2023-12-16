@@ -1,3 +1,5 @@
+use crate::math::{rect::{Rect, rect}, vector::vec2};
+
 use super::{color::Color, shapes::shape::Shape};
 
 #[derive(Debug, Clone)]
@@ -43,30 +45,29 @@ impl PixelBuffer {
         self.buffer[(x + y * self.width) as usize] = color;
     }
 
-    pub fn draw_shape_filled(&mut self, shape: &impl Shape, color: Color) {
-        let (top_left, bot_right) = shape.bounding_box();
-        let top_left = (top_left.0.max(0) as u32, top_left.1.max(0) as u32);
-        let bot_right = (bot_right.0.min(self.width() as i32 - 1) as u32, bot_right.1.min(self.height() as i32 - 1) as u32);
+    pub fn frame_rect(&self) -> Rect<i32> {
+        rect(vec2(0, 0), vec2(self.width as i32 - 1, self.height as i32 - 1))
+    }
 
-        for x in top_left.0..=bot_right.0 {
-            for y in top_left.1..=bot_right.1 {
-                if shape.dist(x as i32, y as i32) < 0.5 {
-                    self.put_pixel(x, y, color);
+    pub fn draw_shape_filled(&mut self, shape: impl Shape, color: Color) {
+        let bb = shape.bounding_box().intersection(self.frame_rect());
+
+        for x in bb.top_left.x..=bb.bot_right.x {
+            for y in bb.top_left.y..=bb.bot_right.y {
+                if shape.dist(vec2(x, y)) < 0.5 {
+                    self.put_pixel(x as u32, y as u32, color);
                 }
             }
         }
     }
 
-    pub fn draw_shape_stroke(&mut self, shape: &impl Shape, color: Color) {
-        let (top_left, bot_right) = shape.bounding_box();
-        let top_left = (top_left.0.max(0) as u32, top_left.1.max(0) as u32);
-        let bot_right = (bot_right.0.min(self.width() as i32 - 1) as u32, bot_right.1.min(self.height() as i32 - 1) as u32);
+    pub fn draw_shape_stroke(&mut self, shape: impl Shape, color: Color) {
+        let bb = shape.bounding_box().intersection(self.frame_rect());
 
-        for x in top_left.0..=bot_right.0 {
-            for y in top_left.1..=bot_right.1 {
-                let d = shape.dist(x as i32, y as i32); 
-                if (-0.5..0.5).contains(&d) {
-                    self.put_pixel(x, y, color);
+        for x in bb.top_left.x..=bb.bot_right.x {
+            for y in bb.top_left.y..=bb.bot_right.y {
+                if (-0.5..0.5).contains(&shape.dist(vec2(x, y))) {
+                    self.put_pixel(x as u32, y as u32, color);
                 }
             }
         }

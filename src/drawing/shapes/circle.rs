@@ -1,21 +1,20 @@
+use crate::math::{vector::{Vec2, vec2}, rect::{Rect, rect}};
+
 use super::shape::Shape;
 
+#[derive(Debug, Clone, Copy)]
 pub struct Circle {
-    pub center: (i32, i32),
+    pub center: Vec2<i32>,
     pub radius: i32,
 }
 
 impl Shape for Circle {
-    fn dist(&self, x: i32, y: i32) -> f32 {
-        let (c_x,c_y) = self.center;
-        let r = self.radius;
-        let d = (x - c_x).pow(2) + (y - c_y).pow(2);
-        (d as f32).sqrt() - r as f32
+    fn dist(&self, v: Vec2<i32>) -> f32 {
+        (self.center - v).to_float().len() - self.radius as f32
     }
 
-    fn bounding_box(&self) -> ((i32, i32), (i32, i32)) {
-        let (c_x,c_y) = self.center;
+    fn bounding_box(&self) -> Rect<i32> {
         let r = self.radius;
-        ((c_x - r, c_y - r), (c_x + r, c_y + r))
+        rect(self.center - vec2(r, r), self.center + vec2(r, r))
     }
 }
