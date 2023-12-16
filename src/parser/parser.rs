@@ -10,6 +10,7 @@ pub enum Value {
     Integer(i64),
     Real(f64),
     Boolean(bool),
+    Range(f64, f64),
 }
 
 impl Display for Value {
@@ -18,6 +19,7 @@ impl Display for Value {
             Value::Integer(int) => write!(f, "{}", int),
             Value::Real(real) => write!(f, "{}", real),
             Value::Boolean(bool) => write!(f, "{}", bool),
+            Value::Range(start, end) => write!(f, "{}..{}", start, end),
         }
     }
 }
@@ -340,7 +342,7 @@ impl<'a> Parser<'a> {
     }
 
     fn factor_expression(&mut self) -> Result<Expression, Error> {
-        let mut expr = self.unary_expression()?;
+        let mut expr = self.range_expression()?;
 
         while self.match_next(&[TokenType::Star, TokenType::Slash]) {
             let operator = self.chop().unwrap();
@@ -348,6 +350,24 @@ impl<'a> Parser<'a> {
 
             expr = Expression::BinaryExpr {
                 operator,
+                left: Box::new(expr),
+                right: Box::new(right),
+            };
+        }
+
+
+        Ok(expr)
+    }
+
+    fn range_expression(&mut self) -> Result<Expression, Error> {
+        let mut expr = self.unary_expression()?;
+
+        if self.match_next(&[TokenType::DotDot]) {
+            let _dot_dot = self.chop().unwrap();
+            let right = self.unary_expression()?;
+
+            expr = Expression::BinaryExpr {
+                operator: Token::new(TokenType::DotDot, "..".to_string()),
                 left: Box::new(expr),
                 right: Box::new(right),
             };
@@ -748,9 +768,7 @@ mod tests {
     fn test_if() {
         let tokens = vec![
             Token::new(TokenType::If, "if".to_string()),
-            Token::new(TokenType::LeftParen, "(".to_string()),
             Token::new(TokenType::True, "true".to_string()),
-            Token::new(TokenType::RightParen, ")".to_string()),
             Token::new(TokenType::LeftCurlyBracket, "{".to_string()),
             Token::new(TokenType::Integer, "5".to_string()),
             Token::new(TokenType::Newline, "\n".to_string()),
@@ -780,9 +798,7 @@ mod tests {
     fn test_if_else() {
         let tokens = vec![
             Token::new(TokenType::If, "if".to_string()),
-            Token::new(TokenType::LeftParen, "(".to_string()),
             Token::new(TokenType::True, "true".to_string()),
-            Token::new(TokenType::RightParen, ")".to_string()),
             Token::new(TokenType::LeftCurlyBracket, "{".to_string()),
             Token::new(TokenType::Integer, "5".to_string()),
             Token::new(TokenType::Newline, "\n".to_string()),
@@ -813,6 +829,31 @@ mod tests {
                         expr: Box::new(Expression::Value(Value::Integer(10))),
                     }]
                 })),
+            }]
+        );
+    }
+
+    #[test]
+    fn test_range() {
+        let tokens = vec![
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::DotDot, "..".to_string()),
+            Token::new(TokenType::Integer, "10".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+        ];
+
+        let statements = parse(&tokens).unwrap();
+
+        println!("{:?}", statements);
+
+        assert_eq!(
+            statements,
+            vec![Statement::Expression {
+                expr: Box::new(Expression::BinaryExpr {
+                    operator: Token::new(TokenType::DotDot, "..".to_string()),
+                    left: Box::new(Expression::Value(Value::Integer(5))),
+                    right: Box::new(Expression::Value(Value::Integer(10))),
+                })
             }]
         );
     }

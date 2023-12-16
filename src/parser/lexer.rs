@@ -119,7 +119,7 @@ impl<'a> Lexer<'a> {
             '{' => Some(Ok(Token::new(TokenType::LeftCurlyBracket, self.chop(1)))),
             '}' => Some(Ok(Token::new(TokenType::RightCurlyBracket, self.chop(1)))),
             ',' => Some(Ok(Token::new(TokenType::Comma, self.chop(1)))),
-            '.' => Some(Ok(Token::new(TokenType::Dot, self.chop(1)))),
+            '.' => Some(self.double_opt_token_helper(TokenType::Dot, TokenType::DotDot, '.')),
             '\n' => {
                 self.current_line += 1;
                 Some(Ok(Token::new(TokenType::Newline, self.chop(1))))

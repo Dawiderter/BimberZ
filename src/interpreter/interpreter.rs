@@ -97,6 +97,7 @@ impl<'a> Interpreter<'a> {
             Value::Integer(int) => Ok(Value::Integer(int)),
             Value::Boolean(bool) => Ok(Value::Boolean(bool)),
             Value::Real(real) => Ok(Value::Real(real)),
+            Value::Range(a, b) => Ok(Value::Range(a, b)),
         }
     }
 
