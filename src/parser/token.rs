@@ -25,11 +25,16 @@ pub enum TokenType {
     Identifier,
     Comma,
     Dot,
+    DotDot,
     Let,
     True,
     False,
     Newline,
-    Print
+    Print,
+    Or,
+    And,
+    If,
+    Else,
 }
 
 impl Display for TokenType {
@@ -58,11 +63,16 @@ impl Display for TokenType {
             TokenType::Identifier => "Identifier",
             TokenType::Comma => "Comma",
             TokenType::Dot => "Dot",
+            TokenType::DotDot => "DotDot",
             TokenType::Let => "Let",
             TokenType::True => "True",
             TokenType::False => "False",
             TokenType::Newline => "Newline",
             TokenType::Print => "Print",
+            TokenType::Or => "Or",
+            TokenType::And => "And",
+            TokenType::If => "If",
+            TokenType::Else => "Else",
         };
         write!(f, "{}", printable)
     }

@@ -7,9 +7,10 @@ use super::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
-    Integer(u64),
+    Integer(i64),
     Real(f64),
     Boolean(bool),
+    Range(f64, f64),
 }
 
 impl Display for Value {
@@ -18,6 +19,7 @@ impl Display for Value {
             Value::Integer(int) => write!(f, "{}", int),
             Value::Real(real) => write!(f, "{}", real),
             Value::Boolean(bool) => write!(f, "{}", bool),
+            Value::Range(start, end) => write!(f, "{}..{}", start, end),
         }
     }
 }
@@ -30,6 +32,11 @@ pub enum Expression {
         right: Box<Expression>,
     },
     BinaryExpr {
+        operator: Token,
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+    LogicalExpr {
         operator: Token,
         left: Box<Expression>,
         right: Box<Expression>,
@@ -53,8 +60,20 @@ pub enum Expression {
 
 #[derive(Debug, PartialEq)]
 pub enum Statement {
-    Expression { expr: Box<Expression> },
-    Print { expr: Box<Expression> },
+    Expression {
+        expr: Box<Expression>,
+    },
+    Print {
+        expr: Box<Expression>,
+    },
+    If {
+        condition: Box<Expression>,
+        then_branch: Box<Statement>,
+        else_branch: Option<Box<Statement>>,
+    },
+    Block {
+        statements: Vec<Statement>,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -110,9 +129,16 @@ impl<'a> Parser<'a> {
 
         while !self.tokens.is_empty() {
             statements.push(self.declaration()?);
+            self.consume_whitespace();
         }
 
         Ok(statements)
+    }
+
+    fn consume_whitespace(&mut self) {
+        while self.match_next(&[TokenType::Newline]) {
+            self.chop();
+        }
     }
 
     fn declaration(&mut self) -> Result<Statement, Error> {
@@ -125,22 +151,12 @@ impl<'a> Parser<'a> {
             .ok_or(Error::new("Expected a statement".to_string()))?
             .token_type;
 
-        if let TokenType::Print = next_type {
-            return self.print_statement();
+        match next_type {
+            TokenType::Print => self.print_statement(),
+            TokenType::If => self.if_statement(),
+            TokenType::LeftCurlyBracket => self.block_statement(),
+            _ => self.expression_statement(),
         }
-
-        self.expression_statement()
-    }
-
-    fn expression_statement(&mut self) -> Result<Statement, Error> {
-        let expr = self.expression()?;
-        self.expect(
-            TokenType::Newline,
-            "Expected a newline after expression statement".to_string(),
-        )?;
-        Ok(Statement::Expression {
-            expr: Box::new(expr),
-        })
     }
 
     fn print_statement(&mut self) -> Result<Statement, Error> {
@@ -155,12 +171,66 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn if_statement(&mut self) -> Result<Statement, Error> {
+        let _if = self.chop().unwrap();
+        let expr = self.expression()?;
+        let block = self.block_statement()?;
+
+        let next = self.peek(0);
+
+        let mut else_branch = None;
+        if next.is_some() && next.unwrap().token_type == TokenType::Else {
+            let _else = self.chop().unwrap();
+            let else_block = self.block_statement()?;
+            else_branch = Some(Box::new(else_block));
+        }
+
+        Ok(Statement::If {
+            condition: Box::new(expr),
+            then_branch: Box::new(block),
+            else_branch,
+        })
+    }
+
+    fn block_statement(&mut self) -> Result<Statement, Error> {
+        let _left_curly_bracket = self.expect(
+            TokenType::LeftCurlyBracket,
+            "Expected a curly bracket.".to_string(),
+        );
+
+        self.consume_whitespace();
+
+        let mut statements = Vec::new();
+
+        while !self.match_next(&[TokenType::RightCurlyBracket]) {
+            statements.push(self.declaration()?);
+        }
+
+        let _right_curly_bracket = self.expect(
+            TokenType::RightCurlyBracket,
+            "Expected a closing curly bracket.".to_string(),
+        );
+
+        Ok(Statement::Block { statements })
+    }
+
+    fn expression_statement(&mut self) -> Result<Statement, Error> {
+        let expr = self.expression()?;
+        self.expect(
+            TokenType::Newline,
+            "Expected a newline after expression statement".to_string(),
+        )?;
+        Ok(Statement::Expression {
+            expr: Box::new(expr),
+        })
+    }
+
     fn expression(&mut self) -> Result<Expression, Error> {
         self.assignment_expression()
     }
 
     fn assignment_expression(&mut self) -> Result<Expression, Error> {
-        let expr = self.primary_expression()?;
+        let expr = self.logic_or_expression()?;
 
         if self.match_next(&[TokenType::Equals]) {
             let _equals = self.chop().unwrap();
@@ -181,6 +251,145 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
+    fn logic_or_expression(&mut self) -> Result<Expression, Error> {
+        let mut expr = self.logic_and_expression()?;
+
+        while self.match_next(&[TokenType::Or]) {
+            let operator = self.chop().unwrap();
+            let right = self.logic_and_expression()?;
+
+            expr = Expression::BinaryExpr {
+                operator,
+                left: Box::new(expr),
+                right: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    fn logic_and_expression(&mut self) -> Result<Expression, Error> {
+        let mut expr = self.equality_expression()?;
+
+        while self.match_next(&[TokenType::And]) {
+            let operator = self.chop().unwrap();
+            let right = self.equality_expression()?;
+
+            expr = Expression::BinaryExpr {
+                operator,
+                left: Box::new(expr),
+                right: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    fn equality_expression(&mut self) -> Result<Expression, Error> {
+        let mut expr = self.comparison_expression()?;
+
+        while self.match_next(&[TokenType::BangEquals, TokenType::EqualsEquals]) {
+            let operator = self.chop().unwrap();
+            let right = self.comparison_expression()?;
+
+            expr = Expression::BinaryExpr {
+                operator,
+                left: Box::new(expr),
+                right: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    fn comparison_expression(&mut self) -> Result<Expression, Error> {
+        let mut expr = self.term_expression()?;
+
+        while self.match_next(&[
+            TokenType::Greater,
+            TokenType::GreaterEquals,
+            TokenType::Less,
+            TokenType::LessEquals,
+        ]) {
+            let operator = self.chop().unwrap();
+            let right = self.term_expression()?;
+
+            expr = Expression::BinaryExpr {
+                operator,
+                left: Box::new(expr),
+                right: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    fn term_expression(&mut self) -> Result<Expression, Error> {
+        let mut expr = self.factor_expression()?;
+
+        while self.match_next(&[TokenType::Plus, TokenType::Minus]) {
+            let operator = self.chop().unwrap();
+            let right = self.factor_expression()?;
+
+            expr = Expression::BinaryExpr {
+                operator,
+                left: Box::new(expr),
+                right: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    fn factor_expression(&mut self) -> Result<Expression, Error> {
+        let mut expr = self.range_expression()?;
+
+        while self.match_next(&[TokenType::Star, TokenType::Slash]) {
+            let operator = self.chop().unwrap();
+            let right = self.unary_expression()?;
+
+            expr = Expression::BinaryExpr {
+                operator,
+                left: Box::new(expr),
+                right: Box::new(right),
+            };
+        }
+
+
+        Ok(expr)
+    }
+
+    fn range_expression(&mut self) -> Result<Expression, Error> {
+        let mut expr = self.unary_expression()?;
+
+        if self.match_next(&[TokenType::DotDot]) {
+            let _dot_dot = self.chop().unwrap();
+            let right = self.unary_expression()?;
+
+            expr = Expression::BinaryExpr {
+                operator: Token::new(TokenType::DotDot, "..".to_string()),
+                left: Box::new(expr),
+                right: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    fn unary_expression(&mut self) -> Result<Expression, Error> {
+        if self.match_next(&[TokenType::Bang, TokenType::Minus]) {
+            let operator = self.chop().unwrap();
+            let right = self.unary_expression()?;
+
+            return Ok(Expression::Unary {
+                operator,
+                right: Box::new(right),
+            });
+        }
+
+        self.primary_expression()
+    }
+
     fn primary_expression(&mut self) -> Result<Expression, Error> {
         let next = self
             .chop()
@@ -188,7 +397,7 @@ impl<'a> Parser<'a> {
 
         match next.token_type {
             TokenType::Integer => Ok(Expression::Value(Value::Integer(
-                next.lexeme.parse::<u64>().unwrap(),
+                next.lexeme.parse::<i64>().unwrap(),
             ))),
             TokenType::Real => Ok(Expression::Value(Value::Real(
                 next.lexeme.parse::<f64>().unwrap(),
@@ -249,8 +458,6 @@ mod tests {
         ];
 
         let statements = parse(&tokens).unwrap();
-
-        println!("statements: {:?}", statements);
 
         assert_eq!(
             statements,
@@ -318,6 +525,334 @@ mod tests {
             vec![Statement::Expression {
                 expr: Box::new(Expression::Grouping {
                     expr: Box::new(Expression::Value(Value::Integer(5))),
+                })
+            }]
+        );
+    }
+
+    #[test]
+    fn test_logic_or() {
+        let tokens = vec![
+            Token::new(TokenType::True, "true".to_string()),
+            Token::new(TokenType::Or, "or".to_string()),
+            Token::new(TokenType::False, "false".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+        ];
+
+        let statements = parse(&tokens).unwrap();
+
+        assert_eq!(
+            statements,
+            vec![Statement::Expression {
+                expr: Box::new(Expression::BinaryExpr {
+                    operator: Token::new(TokenType::Or, "or".to_string()),
+                    left: Box::new(Expression::Value(Value::Boolean(true))),
+                    right: Box::new(Expression::Value(Value::Boolean(false))),
+                })
+            }]
+        );
+    }
+
+    #[test]
+    fn test_logic_and() {
+        let tokens = vec![
+            Token::new(TokenType::True, "true".to_string()),
+            Token::new(TokenType::And, "and".to_string()),
+            Token::new(TokenType::False, "false".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+        ];
+
+        let statements = parse(&tokens).unwrap();
+
+        assert_eq!(
+            statements,
+            vec![Statement::Expression {
+                expr: Box::new(Expression::BinaryExpr {
+                    operator: Token::new(TokenType::And, "and".to_string()),
+                    left: Box::new(Expression::Value(Value::Boolean(true))),
+                    right: Box::new(Expression::Value(Value::Boolean(false))),
+                })
+            }]
+        );
+    }
+
+    #[test]
+    fn test_logic_and_or() {
+        let tokens = vec![
+            Token::new(TokenType::True, "true".to_string()),
+            Token::new(TokenType::And, "and".to_string()),
+            Token::new(TokenType::False, "false".to_string()),
+            Token::new(TokenType::Or, "or".to_string()),
+            Token::new(TokenType::True, "true".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+        ];
+
+        let statements = parse(&tokens).unwrap();
+
+        assert_eq!(
+            statements,
+            vec![Statement::Expression {
+                expr: Box::new(Expression::BinaryExpr {
+                    operator: Token::new(TokenType::Or, "or".to_string()),
+                    left: Box::new(Expression::BinaryExpr {
+                        operator: Token::new(TokenType::And, "and".to_string()),
+                        left: Box::new(Expression::Value(Value::Boolean(true))),
+                        right: Box::new(Expression::Value(Value::Boolean(false))),
+                    }),
+                    right: Box::new(Expression::Value(Value::Boolean(true))),
+                })
+            }]
+        );
+    }
+
+    #[test]
+    fn test_equality() {
+        let tokens = vec![
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::EqualsEquals, "==".to_string()),
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+        ];
+
+        let statements = parse(&tokens).unwrap();
+
+        assert_eq!(
+            statements,
+            vec![Statement::Expression {
+                expr: Box::new(Expression::BinaryExpr {
+                    operator: Token::new(TokenType::EqualsEquals, "==".to_string()),
+                    left: Box::new(Expression::Value(Value::Integer(5))),
+                    right: Box::new(Expression::Value(Value::Integer(5))),
+                })
+            }]
+        );
+    }
+
+    #[test]
+    fn test_comparison() {
+        let tokens = vec![
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::Less, "<".to_string()),
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+        ];
+
+        let statements = parse(&tokens).unwrap();
+
+        assert_eq!(
+            statements,
+            vec![Statement::Expression {
+                expr: Box::new(Expression::BinaryExpr {
+                    operator: Token::new(TokenType::Less, "<".to_string()),
+                    left: Box::new(Expression::Value(Value::Integer(5))),
+                    right: Box::new(Expression::Value(Value::Integer(5))),
+                })
+            }]
+        );
+    }
+
+    #[test]
+    fn test_term() {
+        let tokens = vec![
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::Star, "*".to_string()),
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+        ];
+
+        let statements = parse(&tokens).unwrap();
+
+        assert_eq!(
+            statements,
+            vec![Statement::Expression {
+                expr: Box::new(Expression::BinaryExpr {
+                    operator: Token::new(TokenType::Star, "*".to_string()),
+                    left: Box::new(Expression::Value(Value::Integer(5))),
+                    right: Box::new(Expression::Value(Value::Integer(5))),
+                })
+            }]
+        );
+    }
+
+    #[test]
+    fn test_factor() {
+        let tokens = vec![
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::Star, "*".to_string()),
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::Slash, "/".to_string()),
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+        ];
+
+        let statements = parse(&tokens).unwrap();
+
+        println!("{:?}", statements);
+
+        assert_eq!(
+            statements,
+            vec![Statement::Expression {
+                expr: Box::new(Expression::BinaryExpr {
+                    operator: Token::new(TokenType::Slash, "/".to_string()),
+                    left: Box::new(Expression::BinaryExpr {
+                        operator: Token::new(TokenType::Star, "*".to_string()),
+                        left: Box::new(Expression::Value(Value::Integer(5))),
+                        right: Box::new(Expression::Value(Value::Integer(5))),
+                    }),
+                    right: Box::new(Expression::Value(Value::Integer(5))),
+                })
+            }]
+        );
+    }
+
+    #[test]
+    fn test_unary() {
+        let tokens = vec![
+            Token::new(TokenType::Minus, "-".to_string()),
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::Star, "*".to_string()),
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::Slash, "/".to_string()),
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+        ];
+
+        let statements = parse(&tokens).unwrap();
+
+        println!("{:?}", statements);
+
+        assert_eq!(
+            statements,
+            vec![Statement::Expression {
+                expr: Box::new(Expression::BinaryExpr {
+                    operator: Token::new(TokenType::Slash, "/".to_string()),
+                    left: Box::new(Expression::BinaryExpr {
+                        operator: Token::new(TokenType::Star, "*".to_string()),
+                        left: Box::new(Expression::Unary {
+                            operator: Token::new(TokenType::Minus, "-".to_string()),
+                            right: Box::new(Expression::Value(Value::Integer(5))),
+                        }),
+                        right: Box::new(Expression::Value(Value::Integer(5))),
+                    }),
+                    right: Box::new(Expression::Value(Value::Integer(5))),
+                })
+            }]
+        );
+    }
+
+    #[test]
+    fn test_block() {
+        let tokens = vec![
+            Token::new(TokenType::LeftCurlyBracket, "{".to_string()),
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+            Token::new(TokenType::RightCurlyBracket, "}".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+        ];
+
+        let statements = parse(&tokens).unwrap();
+
+        println!("{:?}", statements);
+
+        assert_eq!(
+            statements,
+            vec![Statement::Block {
+                statements: vec![Statement::Expression {
+                    expr: Box::new(Expression::Value(Value::Integer(5))),
+                }]
+            }]
+        );
+    }
+
+    #[test]
+    fn test_if() {
+        let tokens = vec![
+            Token::new(TokenType::If, "if".to_string()),
+            Token::new(TokenType::True, "true".to_string()),
+            Token::new(TokenType::LeftCurlyBracket, "{".to_string()),
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+            Token::new(TokenType::RightCurlyBracket, "}".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+        ];
+
+        let statements = parse(&tokens).unwrap();
+
+        println!("{:?}", statements);
+
+        assert_eq!(
+            statements,
+            vec![Statement::If {
+                condition: Box::new(Expression::Value(Value::Boolean(true))),
+                then_branch: Box::new(Statement::Block {
+                    statements: vec![Statement::Expression {
+                        expr: Box::new(Expression::Value(Value::Integer(5))),
+                    }]
+                }),
+                else_branch: None,
+            }]
+        );
+    }
+
+    #[test]
+    fn test_if_else() {
+        let tokens = vec![
+            Token::new(TokenType::If, "if".to_string()),
+            Token::new(TokenType::True, "true".to_string()),
+            Token::new(TokenType::LeftCurlyBracket, "{".to_string()),
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+            Token::new(TokenType::RightCurlyBracket, "}".to_string()),
+            Token::new(TokenType::Else, "else".to_string()),
+            Token::new(TokenType::LeftCurlyBracket, "{".to_string()),
+            Token::new(TokenType::Integer, "10".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+            Token::new(TokenType::RightCurlyBracket, "}".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+        ];
+
+        let statements = parse(&tokens).unwrap();
+
+        println!("{:?}", statements);
+
+        assert_eq!(
+            statements,
+            vec![Statement::If {
+                condition: Box::new(Expression::Value(Value::Boolean(true))),
+                then_branch: Box::new(Statement::Block {
+                    statements: vec![Statement::Expression {
+                        expr: Box::new(Expression::Value(Value::Integer(5))),
+                    }]
+                }),
+                else_branch: Some(Box::new(Statement::Block {
+                    statements: vec![Statement::Expression {
+                        expr: Box::new(Expression::Value(Value::Integer(10))),
+                    }]
+                })),
+            }]
+        );
+    }
+
+    #[test]
+    fn test_range() {
+        let tokens = vec![
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::DotDot, "..".to_string()),
+            Token::new(TokenType::Integer, "10".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+        ];
+
+        let statements = parse(&tokens).unwrap();
+
+        println!("{:?}", statements);
+
+        assert_eq!(
+            statements,
+            vec![Statement::Expression {
+                expr: Box::new(Expression::BinaryExpr {
+                    operator: Token::new(TokenType::DotDot, "..".to_string()),
+                    left: Box::new(Expression::Value(Value::Integer(5))),
+                    right: Box::new(Expression::Value(Value::Integer(10))),
                 })
             }]
         );

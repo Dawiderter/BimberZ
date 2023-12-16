@@ -10,6 +10,10 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "true" => TokenType::True,
     "false" => TokenType::False,
     "print" => TokenType::Print,
+    "or" => TokenType::Or,
+    "and" => TokenType::And,
+    "if" => TokenType::If,
+    "else" => TokenType::Else,
 };
 
 pub struct Lexer<'a> {
@@ -19,7 +23,10 @@ pub struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     pub fn new(content: &'a [char]) -> Self {
-        Self { content, current_line: 0 }
+        Self {
+            content,
+            current_line: 0,
+        }
     }
     fn chop(&mut self, len: usize) -> String {
         let lexeme = self.content[0..len].iter().collect();
@@ -112,7 +119,7 @@ impl<'a> Lexer<'a> {
             '{' => Some(Ok(Token::new(TokenType::LeftCurlyBracket, self.chop(1)))),
             '}' => Some(Ok(Token::new(TokenType::RightCurlyBracket, self.chop(1)))),
             ',' => Some(Ok(Token::new(TokenType::Comma, self.chop(1)))),
-            '.' => Some(Ok(Token::new(TokenType::Dot, self.chop(1)))),
+            '.' => Some(self.double_opt_token_helper(TokenType::Dot, TokenType::DotDot, '.')),
             '\n' => {
                 self.current_line += 1;
                 Some(Ok(Token::new(TokenType::Newline, self.chop(1))))
