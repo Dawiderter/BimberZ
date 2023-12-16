@@ -31,7 +31,9 @@ pub enum TokenType {
     Newline,
     Print,
     Or,
-    And
+    And,
+    If,
+    Else,
 }
 
 impl Display for TokenType {
@@ -67,6 +69,8 @@ impl Display for TokenType {
             TokenType::Print => "Print",
             TokenType::Or => "Or",
             TokenType::And => "And",
+            TokenType::If => "If",
+            TokenType::Else => "Else",
         };
         write!(f, "{}", printable)
     }

@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
-use crate::parser::{parser::{Value, Statement, Expression}, error::Error, token::{Token, TokenType}};
-
-
+use crate::parser::{
+    error::Error,
+    parser::{Expression, Statement, Value},
+    token::{Token, TokenType},
+};
 
 #[derive(Debug)]
 pub struct Environment {
@@ -28,7 +30,6 @@ struct Interpreter<'a> {
     environment: &'a mut Environment,
 }
 
-
 impl<'a> Interpreter<'a> {
     fn new(environment: &'a mut Environment) -> Self {
         Self { environment }
@@ -36,21 +37,55 @@ impl<'a> Interpreter<'a> {
 
     fn execute(&mut self, statement: Statement) -> Result<(), Error> {
         match statement {
-            Statement::Expression{expr} => {self.evaluate(*expr)?;},
-            Statement::Print{expr} => {
+            Statement::Expression { expr } => {
+                self.evaluate(*expr)?;
+            }
+            Statement::Print { expr } => {
                 let value = self.evaluate(*expr)?;
                 println!("{}", value);
             }
+            Statement::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                let condition = self.evaluate(*condition)?;
+
+                let truthiness = match condition {
+                    Value::Boolean(bool) => bool,
+                    _ => return Err(Error::new("Expected boolean in an if condition".to_string())),
+                };
+
+                if truthiness {
+                    self.execute(*then_branch)?;
+                } else if let Some(else_branch) = else_branch {
+                    self.execute(*else_branch)?;
+                }
+            }
+            Statement::Block { statements } => {
+                // TODO: Add nested scopes to environments
+                for statement in statements {
+                    self.execute(statement)?;
+                }
+            },
         };
         Ok(())
-    } 
+    }
 
     fn evaluate(&mut self, expression: Expression) -> Result<Value, Error> {
         match expression {
             Expression::Value(value) => self.evaluate_value(value),
             Expression::Unary { operator, right } => self.evaluate_unary(operator, *right),
-            Expression::BinaryExpr { operator, left, right } => self.evaluate_binary(operator, *left, *right),
-            Expression::LogicalExpr { operator, left, right } => todo!(),
+            Expression::BinaryExpr {
+                operator,
+                left,
+                right,
+            } => self.evaluate_binary(operator, *left, *right),
+            Expression::LogicalExpr {
+                operator,
+                left,
+                right,
+            } => self.evaluate_logical(operator, *left, *right),
             Expression::Grouping { expr } => self.evaluate(*expr),
             Expression::Assign { assignee, value } => self.evaluate_assign(*assignee, *value),
             Expression::Variable { name, member } => self.evaluate_variable(name, member),
@@ -82,7 +117,12 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn evaluate_binary(&mut self, operator: Token, left: Expression, right: Expression) -> Result<Value, Error>{
+    fn evaluate_binary(
+        &mut self,
+        operator: Token,
+        left: Expression,
+        right: Expression,
+    ) -> Result<Value, Error> {
         let left = self.evaluate(left)?;
         let right = self.evaluate(right)?;
 
@@ -120,52 +160,109 @@ impl<'a> Interpreter<'a> {
             TokenType::Less => match (left, right) {
                 (Value::Integer(left), Value::Integer(right)) => Ok(Value::Boolean(left < right)),
                 (Value::Real(left), Value::Real(right)) => Ok(Value::Boolean(left < right)),
-                (Value::Integer(left), Value::Real(right)) => Ok(Value::Boolean((left as f64) < right)),
-                (Value::Real(left), Value::Integer(right)) => Ok(Value::Boolean(left < right as f64)),
+                (Value::Integer(left), Value::Real(right)) => {
+                    Ok(Value::Boolean((left as f64) < right))
+                }
+                (Value::Real(left), Value::Integer(right)) => {
+                    Ok(Value::Boolean(left < right as f64))
+                }
                 _ => Err(Error::new("Expected number".to_string())),
             },
             TokenType::LessEquals => match (left, right) {
                 (Value::Integer(left), Value::Integer(right)) => Ok(Value::Boolean(left <= right)),
                 (Value::Real(left), Value::Real(right)) => Ok(Value::Boolean(left <= right)),
-                (Value::Integer(left), Value::Real(right)) => Ok(Value::Boolean(left as f64 <= right)),
-                (Value::Real(left), Value::Integer(right)) => Ok(Value::Boolean(left <= right as f64)),
+                (Value::Integer(left), Value::Real(right)) => {
+                    Ok(Value::Boolean(left as f64 <= right))
+                }
+                (Value::Real(left), Value::Integer(right)) => {
+                    Ok(Value::Boolean(left <= right as f64))
+                }
                 _ => Err(Error::new("Expected number".to_string())),
             },
             TokenType::Greater => match (left, right) {
                 (Value::Integer(left), Value::Integer(right)) => Ok(Value::Boolean(left > right)),
                 (Value::Real(left), Value::Real(right)) => Ok(Value::Boolean(left > right)),
-                (Value::Integer(left), Value::Real(right)) => Ok(Value::Boolean(left as f64 > right)),
-                (Value::Real(left), Value::Integer(right)) => Ok(Value::Boolean(left > right as f64)),
+                (Value::Integer(left), Value::Real(right)) => {
+                    Ok(Value::Boolean(left as f64 > right))
+                }
+                (Value::Real(left), Value::Integer(right)) => {
+                    Ok(Value::Boolean(left > right as f64))
+                }
                 _ => Err(Error::new("Expected number".to_string())),
             },
             TokenType::GreaterEquals => match (left, right) {
                 (Value::Integer(left), Value::Integer(right)) => Ok(Value::Boolean(left >= right)),
                 (Value::Real(left), Value::Real(right)) => Ok(Value::Boolean(left >= right)),
-                (Value::Integer(left), Value::Real(right)) => Ok(Value::Boolean(left as f64 >= right)),
-                (Value::Real(left), Value::Integer(right)) => Ok(Value::Boolean(left >= right as f64)),
+                (Value::Integer(left), Value::Real(right)) => {
+                    Ok(Value::Boolean(left as f64 >= right))
+                }
+                (Value::Real(left), Value::Integer(right)) => {
+                    Ok(Value::Boolean(left >= right as f64))
+                }
                 _ => Err(Error::new("Expected number".to_string())),
             },
             _ => Err(Error::new("Expected binary operator".to_string())),
         }
     }
 
+    fn evaluate_logical(&mut self, operator: Token, left: Expression, right: Expression) -> Result<Value, Error> {
+        let left = self.evaluate(left)?;
+
+        match operator.token_type {
+            TokenType::And => {
+                if let Value::Boolean(bool) = left {
+                    if bool {
+                        let right = self.evaluate(right)?;
+                        if let Value::Boolean(bool) = right {
+                            return Ok(Value::Boolean(bool));
+                        }
+                    }
+                }
+                Ok(Value::Boolean(false))
+            },
+            TokenType::Or => {
+                if let Value::Boolean(bool) = left {
+                    if bool {
+                        return Ok(Value::Boolean(true));
+                    }
+                }
+                let right = self.evaluate(right)?;
+                if let Value::Boolean(bool) = right {
+                    return Ok(Value::Boolean(bool));
+                }
+                Ok(Value::Boolean(false))
+            },
+            _ => Err(Error::new("Expected logical operator".to_string())),
+        }
+    }
+
     fn evaluate_assign(&mut self, assignee: Expression, value: Expression) -> Result<Value, Error> {
         let value = self.evaluate(value)?;
 
-        let Expression::Variable{name, member} = assignee else {
+        let Expression::Variable { name, member } = assignee else {
             return Err(Error::new("Expected variable".to_string()));
         };
 
         // TODO: Handle members
 
-        self.environment.variables.insert(name.lexeme, value.clone());
+        self.environment
+            .variables
+            .insert(name.lexeme, value.clone());
 
         Ok(value)
     }
 
-    fn evaluate_variable(&mut self, name: Token, member: Option<Box<Expression>>) -> Result<Value, Error> {
+    fn evaluate_variable(
+        &mut self,
+        name: Token,
+        member: Option<Box<Expression>>,
+    ) -> Result<Value, Error> {
         let name = name.lexeme;
-        let value = self.environment.variables.get(&name).ok_or_else(|| Error::new(format!("Variable {} not found", name)))?;
+        let value = self
+            .environment
+            .variables
+            .get(&name)
+            .ok_or_else(|| Error::new(format!("Variable {} not found", name)))?;
 
         Ok(value.clone())
     }

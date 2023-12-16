@@ -58,8 +58,20 @@ pub enum Expression {
 
 #[derive(Debug, PartialEq)]
 pub enum Statement {
-    Expression { expr: Box<Expression> },
-    Print { expr: Box<Expression> },
+    Expression {
+        expr: Box<Expression>,
+    },
+    Print {
+        expr: Box<Expression>,
+    },
+    If {
+        condition: Box<Expression>,
+        then_branch: Box<Statement>,
+        else_branch: Option<Box<Statement>>,
+    },
+    Block {
+        statements: Vec<Statement>,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -115,9 +127,16 @@ impl<'a> Parser<'a> {
 
         while !self.tokens.is_empty() {
             statements.push(self.declaration()?);
+            self.consume_whitespace();
         }
 
         Ok(statements)
+    }
+
+    fn consume_whitespace(&mut self) {
+        while self.match_next(&[TokenType::Newline]) {
+            self.chop();
+        }
     }
 
     fn declaration(&mut self) -> Result<Statement, Error> {
@@ -130,22 +149,12 @@ impl<'a> Parser<'a> {
             .ok_or(Error::new("Expected a statement".to_string()))?
             .token_type;
 
-        if let TokenType::Print = next_type {
-            return self.print_statement();
+        match next_type {
+            TokenType::Print => self.print_statement(),
+            TokenType::If => self.if_statement(),
+            TokenType::LeftCurlyBracket => self.block_statement(),
+            _ => self.expression_statement(),
         }
-
-        self.expression_statement()
-    }
-
-    fn expression_statement(&mut self) -> Result<Statement, Error> {
-        let expr = self.expression()?;
-        self.expect(
-            TokenType::Newline,
-            "Expected a newline after expression statement".to_string(),
-        )?;
-        Ok(Statement::Expression {
-            expr: Box::new(expr),
-        })
     }
 
     fn print_statement(&mut self) -> Result<Statement, Error> {
@@ -156,6 +165,60 @@ impl<'a> Parser<'a> {
             "Expected a newline after print statement".to_string(),
         )?;
         Ok(Statement::Print {
+            expr: Box::new(expr),
+        })
+    }
+
+    fn if_statement(&mut self) -> Result<Statement, Error> {
+        let _if = self.chop().unwrap();
+        let expr = self.expression()?;
+        let block = self.block_statement()?;
+
+        let next = self.peek(0);
+
+        let mut else_branch = None;
+        if next.is_some() && next.unwrap().token_type == TokenType::Else {
+            let _else = self.chop().unwrap();
+            let else_block = self.block_statement()?;
+            else_branch = Some(Box::new(else_block));
+        }
+
+        Ok(Statement::If {
+            condition: Box::new(expr),
+            then_branch: Box::new(block),
+            else_branch,
+        })
+    }
+
+    fn block_statement(&mut self) -> Result<Statement, Error> {
+        let _left_curly_bracket = self.expect(
+            TokenType::LeftCurlyBracket,
+            "Expected a curly bracket.".to_string(),
+        );
+
+        self.consume_whitespace();
+
+        let mut statements = Vec::new();
+
+        while !self.match_next(&[TokenType::RightCurlyBracket]) {
+            statements.push(self.declaration()?);
+        }
+
+        let _right_curly_bracket = self.expect(
+            TokenType::RightCurlyBracket,
+            "Expected a closing curly bracket.".to_string(),
+        );
+
+        Ok(Statement::Block { statements })
+    }
+
+    fn expression_statement(&mut self) -> Result<Statement, Error> {
+        let expr = self.expression()?;
+        self.expect(
+            TokenType::Newline,
+            "Expected a newline after expression statement".to_string(),
+        )?;
+        Ok(Statement::Expression {
             expr: Box::new(expr),
         })
     }
@@ -375,8 +438,6 @@ mod tests {
         ];
 
         let statements = parse(&tokens).unwrap();
-
-        println!("statements: {:?}", statements);
 
         assert_eq!(
             statements,
@@ -655,6 +716,103 @@ mod tests {
                     }),
                     right: Box::new(Expression::Value(Value::Integer(5))),
                 })
+            }]
+        );
+    }
+
+    #[test]
+    fn test_block() {
+        let tokens = vec![
+            Token::new(TokenType::LeftCurlyBracket, "{".to_string()),
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+            Token::new(TokenType::RightCurlyBracket, "}".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+        ];
+
+        let statements = parse(&tokens).unwrap();
+
+        println!("{:?}", statements);
+
+        assert_eq!(
+            statements,
+            vec![Statement::Block {
+                statements: vec![Statement::Expression {
+                    expr: Box::new(Expression::Value(Value::Integer(5))),
+                }]
+            }]
+        );
+    }
+
+    #[test]
+    fn test_if() {
+        let tokens = vec![
+            Token::new(TokenType::If, "if".to_string()),
+            Token::new(TokenType::LeftParen, "(".to_string()),
+            Token::new(TokenType::True, "true".to_string()),
+            Token::new(TokenType::RightParen, ")".to_string()),
+            Token::new(TokenType::LeftCurlyBracket, "{".to_string()),
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+            Token::new(TokenType::RightCurlyBracket, "}".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+        ];
+
+        let statements = parse(&tokens).unwrap();
+
+        println!("{:?}", statements);
+
+        assert_eq!(
+            statements,
+            vec![Statement::If {
+                condition: Box::new(Expression::Value(Value::Boolean(true))),
+                then_branch: Box::new(Statement::Block {
+                    statements: vec![Statement::Expression {
+                        expr: Box::new(Expression::Value(Value::Integer(5))),
+                    }]
+                }),
+                else_branch: None,
+            }]
+        );
+    }
+
+    #[test]
+    fn test_if_else() {
+        let tokens = vec![
+            Token::new(TokenType::If, "if".to_string()),
+            Token::new(TokenType::LeftParen, "(".to_string()),
+            Token::new(TokenType::True, "true".to_string()),
+            Token::new(TokenType::RightParen, ")".to_string()),
+            Token::new(TokenType::LeftCurlyBracket, "{".to_string()),
+            Token::new(TokenType::Integer, "5".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+            Token::new(TokenType::RightCurlyBracket, "}".to_string()),
+            Token::new(TokenType::Else, "else".to_string()),
+            Token::new(TokenType::LeftCurlyBracket, "{".to_string()),
+            Token::new(TokenType::Integer, "10".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+            Token::new(TokenType::RightCurlyBracket, "}".to_string()),
+            Token::new(TokenType::Newline, "\n".to_string()),
+        ];
+
+        let statements = parse(&tokens).unwrap();
+
+        println!("{:?}", statements);
+
+        assert_eq!(
+            statements,
+            vec![Statement::If {
+                condition: Box::new(Expression::Value(Value::Boolean(true))),
+                then_branch: Box::new(Statement::Block {
+                    statements: vec![Statement::Expression {
+                        expr: Box::new(Expression::Value(Value::Integer(5))),
+                    }]
+                }),
+                else_branch: Some(Box::new(Statement::Block {
+                    statements: vec![Statement::Expression {
+                        expr: Box::new(Expression::Value(Value::Integer(10))),
+                    }]
+                })),
             }]
         );
     }

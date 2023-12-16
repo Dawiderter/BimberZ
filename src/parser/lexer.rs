@@ -12,6 +12,8 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "print" => TokenType::Print,
     "or" => TokenType::Or,
     "and" => TokenType::And,
+    "if" => TokenType::If,
+    "else" => TokenType::Else,
 };
 
 pub struct Lexer<'a> {
@@ -21,7 +23,10 @@ pub struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     pub fn new(content: &'a [char]) -> Self {
-        Self { content, current_line: 0 }
+        Self {
+            content,
+            current_line: 0,
+        }
     }
     fn chop(&mut self, len: usize) -> String {
         let lexeme = self.content[0..len].iter().collect();
