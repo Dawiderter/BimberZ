@@ -7,7 +7,7 @@ use super::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
-    Integer(u64),
+    Integer(i64),
     Real(f64),
     Boolean(bool),
 }
@@ -30,6 +30,11 @@ pub enum Expression {
         right: Box<Expression>,
     },
     BinaryExpr {
+        operator: Token,
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+    LogicalExpr {
         operator: Token,
         left: Box<Expression>,
         right: Box<Expression>,
@@ -309,7 +314,7 @@ impl<'a> Parser<'a> {
 
         match next.token_type {
             TokenType::Integer => Ok(Expression::Value(Value::Integer(
-                next.lexeme.parse::<u64>().unwrap(),
+                next.lexeme.parse::<i64>().unwrap(),
             ))),
             TokenType::Real => Ok(Expression::Value(Value::Real(
                 next.lexeme.parse::<f64>().unwrap(),

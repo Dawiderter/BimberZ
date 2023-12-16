@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::parser::{parser::{Value, Statement, Expression}, error::Error, token::Token};
+use crate::parser::{parser::{Value, Statement, Expression}, error::Error, token::{Token, TokenType}};
 
 
 
@@ -48,8 +48,9 @@ impl<'a> Interpreter<'a> {
     fn evaluate(&mut self, expression: Expression) -> Result<Value, Error> {
         match expression {
             Expression::Value(value) => self.evaluate_value(value),
-            Expression::Unary { operator, right } => todo!(),
-            Expression::BinaryExpr { operator, left, right } => todo!(),
+            Expression::Unary { operator, right } => self.evaluate_unary(operator, *right),
+            Expression::BinaryExpr { operator, left, right } => self.evaluate_binary(operator, *left, *right),
+            Expression::LogicalExpr { operator, left, right } => todo!(),
             Expression::Grouping { expr } => self.evaluate(*expr),
             Expression::Assign { assignee, value } => self.evaluate_assign(*assignee, *value),
             Expression::Variable { name, member } => self.evaluate_variable(name, member),
@@ -61,6 +62,90 @@ impl<'a> Interpreter<'a> {
             Value::Integer(int) => Ok(Value::Integer(int)),
             Value::Boolean(bool) => Ok(Value::Boolean(bool)),
             Value::Real(real) => Ok(Value::Real(real)),
+        }
+    }
+
+    fn evaluate_unary(&mut self, operator: Token, right: Expression) -> Result<Value, Error> {
+        let right = self.evaluate(right)?;
+
+        match operator.token_type {
+            TokenType::Minus => match right {
+                Value::Integer(int) => Ok(Value::Integer(-int)),
+                Value::Real(real) => Ok(Value::Real(-real)),
+                _ => Err(Error::new("Expected number".to_string())),
+            },
+            TokenType::Bang => match right {
+                Value::Boolean(bool) => Ok(Value::Boolean(!bool)),
+                _ => Err(Error::new("Expected boolean".to_string())),
+            },
+            _ => Err(Error::new("Expected unary operator".to_string())),
+        }
+    }
+
+    fn evaluate_binary(&mut self, operator: Token, left: Expression, right: Expression) -> Result<Value, Error>{
+        let left = self.evaluate(left)?;
+        let right = self.evaluate(right)?;
+
+        match operator.token_type {
+            TokenType::Star => match (left, right) {
+                (Value::Integer(left), Value::Integer(right)) => Ok(Value::Integer(left * right)),
+                (Value::Real(left), Value::Real(right)) => Ok(Value::Real(left * right)),
+                (Value::Integer(left), Value::Real(right)) => Ok(Value::Real(left as f64 * right)),
+                (Value::Real(left), Value::Integer(right)) => Ok(Value::Real(left * right as f64)),
+                _ => Err(Error::new("Expected number".to_string())),
+            },
+            TokenType::Slash => match (left, right) {
+                (Value::Integer(left), Value::Integer(right)) => Ok(Value::Integer(left / right)),
+                (Value::Real(left), Value::Real(right)) => Ok(Value::Real(left / right)),
+                (Value::Integer(left), Value::Real(right)) => Ok(Value::Real(left as f64 / right)),
+                (Value::Real(left), Value::Integer(right)) => Ok(Value::Real(left / right as f64)),
+                _ => Err(Error::new("Expected number".to_string())),
+            },
+            TokenType::Plus => match (left, right) {
+                (Value::Integer(left), Value::Integer(right)) => Ok(Value::Integer(left + right)),
+                (Value::Real(left), Value::Real(right)) => Ok(Value::Real(left + right)),
+                (Value::Integer(left), Value::Real(right)) => Ok(Value::Real(left as f64 + right)),
+                (Value::Real(left), Value::Integer(right)) => Ok(Value::Real(left + right as f64)),
+                _ => Err(Error::new("Expected number".to_string())),
+            },
+            TokenType::Minus => match (left, right) {
+                (Value::Integer(left), Value::Integer(right)) => Ok(Value::Integer(left - right)),
+                (Value::Real(left), Value::Real(right)) => Ok(Value::Real(left - right)),
+                (Value::Integer(left), Value::Real(right)) => Ok(Value::Real(left as f64 - right)),
+                (Value::Real(left), Value::Integer(right)) => Ok(Value::Real(left - right as f64)),
+                _ => Err(Error::new("Expected number".to_string())),
+            },
+            TokenType::EqualsEquals => Ok(Value::Boolean(left == right)),
+            TokenType::BangEquals => Ok(Value::Boolean(left != right)),
+            TokenType::Less => match (left, right) {
+                (Value::Integer(left), Value::Integer(right)) => Ok(Value::Boolean(left < right)),
+                (Value::Real(left), Value::Real(right)) => Ok(Value::Boolean(left < right)),
+                (Value::Integer(left), Value::Real(right)) => Ok(Value::Boolean((left as f64) < right)),
+                (Value::Real(left), Value::Integer(right)) => Ok(Value::Boolean(left < right as f64)),
+                _ => Err(Error::new("Expected number".to_string())),
+            },
+            TokenType::LessEquals => match (left, right) {
+                (Value::Integer(left), Value::Integer(right)) => Ok(Value::Boolean(left <= right)),
+                (Value::Real(left), Value::Real(right)) => Ok(Value::Boolean(left <= right)),
+                (Value::Integer(left), Value::Real(right)) => Ok(Value::Boolean(left as f64 <= right)),
+                (Value::Real(left), Value::Integer(right)) => Ok(Value::Boolean(left <= right as f64)),
+                _ => Err(Error::new("Expected number".to_string())),
+            },
+            TokenType::Greater => match (left, right) {
+                (Value::Integer(left), Value::Integer(right)) => Ok(Value::Boolean(left > right)),
+                (Value::Real(left), Value::Real(right)) => Ok(Value::Boolean(left > right)),
+                (Value::Integer(left), Value::Real(right)) => Ok(Value::Boolean(left as f64 > right)),
+                (Value::Real(left), Value::Integer(right)) => Ok(Value::Boolean(left > right as f64)),
+                _ => Err(Error::new("Expected number".to_string())),
+            },
+            TokenType::GreaterEquals => match (left, right) {
+                (Value::Integer(left), Value::Integer(right)) => Ok(Value::Boolean(left >= right)),
+                (Value::Real(left), Value::Real(right)) => Ok(Value::Boolean(left >= right)),
+                (Value::Integer(left), Value::Real(right)) => Ok(Value::Boolean(left as f64 >= right)),
+                (Value::Real(left), Value::Integer(right)) => Ok(Value::Boolean(left >= right as f64)),
+                _ => Err(Error::new("Expected number".to_string())),
+            },
+            _ => Err(Error::new("Expected binary operator".to_string())),
         }
     }
 
