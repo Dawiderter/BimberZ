@@ -1,29 +1,10 @@
-use std::collections::HashMap;
-
 use crate::parser::{
     error::Error,
     parser::{Expression, Statement, Value},
     token::{Token, TokenType},
 };
 
-#[derive(Debug)]
-pub struct Environment<'a> {
-    pub variables: HashMap<&'a str, Value>,
-}
-
-impl<'a> Environment<'a> {
-    pub fn new() -> Self {
-        Self {
-            variables: HashMap::new(),
-        }
-    }
-}
-
-impl<'a> Default for Environment<'a> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+use super::environment::Environment;
 
 #[derive(Debug)]
 struct Interpreter<'a> {
@@ -35,7 +16,7 @@ impl<'a> Interpreter<'a> {
         Self { environment }
     }
 
-    fn execute(&mut self, statement: &'a Statement) -> Result<(), Error> {
+    fn execute<'b>(&mut self, statement: &'a Statement) -> Result<(), Error> {
         match statement {
             Statement::Expression { expr } => {
                 self.evaluate(expr)?;
@@ -67,10 +48,7 @@ impl<'a> Interpreter<'a> {
                 }
             }
             Statement::Block { statements } => {
-                // TODO: Add nested scopes to environments
-                for statement in statements {
-                    self.execute(statement)?;
-                }
+                self.execute_block(statements)?
             }
             Statement::For {
                 variable,
@@ -78,6 +56,25 @@ impl<'a> Interpreter<'a> {
                 body,
             } => self.for_statement(variable, range, body)?,
         };
+        Ok(())
+    }
+
+    fn execute_block(
+        &mut self,
+        statements: &'a Vec<Statement>,
+    ) -> Result<(), Error> {
+        let previous = &self.environment;
+
+        let mut environment = Environment::new(Some(self.environment));
+
+        self.environment = &mut environment;
+
+        for statement in statements {
+            self.execute(statement)?;
+        }
+
+        self.environment = *previous;
+
         Ok(())
     }
 
@@ -93,9 +90,7 @@ impl<'a> Interpreter<'a> {
             Value::Range(a, b) => {
                 let mut i = a;
                 while i < b {
-                    self.environment
-                        .variables
-                        .insert(&name.lexeme, Value::Integer(i));
+                    self.environment.assign(&name.lexeme, Value::Integer(i));
                     self.execute(body)?;
                     i += 1;
                 }
@@ -238,13 +233,11 @@ impl<'a> Interpreter<'a> {
             },
             TokenType::DotDot => match (left, right) {
                 (Value::Integer(left), Value::Integer(right)) => Ok(Value::Range(left, right)),
-                (Value::Real(left), Value::Real(right)) => Ok(Value::Range(left as i64, right as i64)),
-                (Value::Integer(left), Value::Real(right)) => {
-                    Ok(Value::Range(left, right as i64))
+                (Value::Real(left), Value::Real(right)) => {
+                    Ok(Value::Range(left as i64, right as i64))
                 }
-                (Value::Real(left), Value::Integer(right)) => {
-                    Ok(Value::Range(left as i64, right))
-                }
+                (Value::Integer(left), Value::Real(right)) => Ok(Value::Range(left, right as i64)),
+                (Value::Real(left), Value::Integer(right)) => Ok(Value::Range(left as i64, right)),
                 _ => Err(Error::new("Expected number".to_string())),
             },
             _ => Err(Error::new("Expected binary operator".to_string())),
@@ -300,31 +293,25 @@ impl<'a> Interpreter<'a> {
 
         // TODO: Handle members
 
-        self.environment
-            .variables
-            .insert(&name.lexeme, value);
+        self.environment.assign(&name.lexeme, value);
 
         Ok(value)
     }
 
     fn evaluate_variable(
         &mut self,
-        name: &Token,
-        member: &Option<Box<Expression>>,
+        name: &'a Token,
+        member: &'a Option<Box<Expression>>,
     ) -> Result<Value, Error> {
         let name = name.lexeme.as_str();
-        let value = self
-            .environment
-            .variables
-            .get(name)
-            .ok_or_else(|| Error::new(format!("Variable {} not found", name)))?;
+        let value = self.environment.get(name)?;
 
         Ok(*value)
     }
 }
 
 pub fn interpret(statements: Vec<Statement>) -> Result<(), Error> {
-    let mut environment = Environment::new();
+    let mut environment = Environment::default();
     let mut interpreter = Interpreter::new(&mut environment);
     for statement in &statements {
         interpreter.execute(statement)?;

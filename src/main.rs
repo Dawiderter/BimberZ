@@ -1,4 +1,7 @@
-use bimberz::{parser::{lexer::Lexer, token::Token, error::Error}, interpreter::interpreter::{interpret}};
+use bimberz::{
+    interpreter::interpreter::interpret,
+    parser::{error::Error, lexer::Lexer, token::Token},
+};
 
 fn main() -> Result<(), Error> {
     let args = std::env::args().collect::<Vec<_>>();

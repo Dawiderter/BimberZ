@@ -1,8 +1,19 @@
 y = false
 
+print y
+
+{
+    y = true
+    print y
+}
+
+print y
+
 for i in 2..5 {
     print i
 }
+
+print 2..5
 
 if y {
     print 5
