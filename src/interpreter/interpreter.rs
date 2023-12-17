@@ -57,6 +57,7 @@ impl<'s> Interpreter<'s> {
                 range,
                 body,
             } => self.for_statement(variable, range, body)?,
+            Statement::While { condition, body } => self.while_statement(condition, body)?,
         };
         Ok(())
     }
@@ -96,6 +97,18 @@ impl<'s> Interpreter<'s> {
                 }
             }
             _ => return Err(Error::new("Expected range".to_string())),
+        }
+
+        Ok(())
+    }
+
+    fn while_statement(
+        &mut self,
+        condition: &'s Expression,
+        body: &'s Statement,
+    ) -> Result<(), Error> {
+        while self.evaluate(condition)? == Value::Boolean(true) {
+            self.execute(body)?;
         }
 
         Ok(())

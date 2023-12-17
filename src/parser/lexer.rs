@@ -16,6 +16,7 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "else" => TokenType::Else,
     "for" => TokenType::For,
     "in" => TokenType::In,
+    "while" => TokenType::While,
 };
 
 pub struct Lexer<'a> {
@@ -92,7 +93,7 @@ impl<'a> Lexer<'a> {
         }
 
         if self.content[0].is_alphabetic() {
-            let str = self.chop_while(|x| x.is_alphabetic());
+            let str = self.chop_while(|x| x.is_alphabetic() || x.is_numeric() || *x == '_');
             if let Some(keyword) = KEYWORDS.get(&str).cloned() {
                 return Some(Ok(Token::new(keyword, str)));
             }

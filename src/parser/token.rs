@@ -37,6 +37,7 @@ pub enum TokenType {
     Else,
     For,
     In,
+    While,
 }
 
 impl Display for TokenType {
@@ -77,6 +78,7 @@ impl Display for TokenType {
             TokenType::Else => "Else",
             TokenType::For => "For",
             TokenType::In => "In",
+            TokenType::While => "While",
         };
         write!(f, "{}", printable)
     }

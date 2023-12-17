@@ -84,6 +84,10 @@ pub enum Statement {
         range: Box<Expression>,
         body: Box<Statement>,
     },
+    While {
+        condition: Box<Expression>,
+        body: Box<Statement>,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -167,6 +171,7 @@ impl<'a> Parser<'a> {
             TokenType::If => self.if_statement(),
             TokenType::LeftCurlyBracket => self.block_statement(),
             TokenType::For => self.for_statement(),
+            TokenType::While => self.while_statement(),
             _ => self.expression_statement(),
         }
     }
@@ -241,6 +246,17 @@ impl<'a> Parser<'a> {
         Ok(Statement::For {
             variable,
             range: Box::new(range),
+            body: Box::new(body),
+        })
+    }
+
+    fn while_statement(&mut self) -> Result<Statement, Error> {
+        let _while = self.chop().unwrap();
+        let condition = self.expression()?;
+        let body = self.block_statement()?;
+
+        Ok(Statement::While {
+            condition: Box::new(condition),
             body: Box::new(body),
         })
     }
