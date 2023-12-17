@@ -35,6 +35,8 @@ pub enum TokenType {
     And,
     If,
     Else,
+    For,
+    In,
 }
 
 impl Display for TokenType {
@@ -73,6 +75,8 @@ impl Display for TokenType {
             TokenType::And => "And",
             TokenType::If => "If",
             TokenType::Else => "Else",
+            TokenType::For => "For",
+            TokenType::In => "In",
         };
         write!(f, "{}", printable)
     }

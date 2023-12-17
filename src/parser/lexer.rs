@@ -14,6 +14,8 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "and" => TokenType::And,
     "if" => TokenType::If,
     "else" => TokenType::Else,
+    "for" => TokenType::For,
+    "in" => TokenType::In,
 };
 
 pub struct Lexer<'a> {

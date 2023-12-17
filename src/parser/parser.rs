@@ -5,12 +5,12 @@ use super::{
     token::{Token, TokenType},
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum Value {
     Integer(i64),
     Real(f64),
     Boolean(bool),
-    Range(f64, f64),
+    Range(i64, i64),
 }
 
 impl Display for Value {
@@ -24,7 +24,7 @@ impl Display for Value {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
     Value(Value),
     Unary {
@@ -58,7 +58,7 @@ pub enum Expression {
     },
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
     Expression {
         expr: Box<Expression>,
@@ -73,6 +73,11 @@ pub enum Statement {
     },
     Block {
         statements: Vec<Statement>,
+    },
+    For {
+        variable: Token,
+        range: Box<Expression>,
+        body: Box<Statement>,
     },
 }
 
@@ -106,6 +111,7 @@ impl<'a> Parser<'a> {
         }
         let token = &self.tokens[0];
         self.tokens = &self.tokens[1..];
+        // TODO: Remove the clone
         Some(token.clone())
     }
 
@@ -155,6 +161,7 @@ impl<'a> Parser<'a> {
             TokenType::Print => self.print_statement(),
             TokenType::If => self.if_statement(),
             TokenType::LeftCurlyBracket => self.block_statement(),
+            TokenType::For => self.for_statement(),
             _ => self.expression_statement(),
         }
     }
@@ -212,6 +219,25 @@ impl<'a> Parser<'a> {
         );
 
         Ok(Statement::Block { statements })
+    }
+
+    fn for_statement(&mut self) -> Result<Statement, Error> {
+        let _for = self.chop().unwrap();
+        let variable = self
+            .chop()
+            .ok_or(Error::new("Expected a variable name".to_string()))?;
+        let _in = self.expect(
+            TokenType::In,
+            "Expected 'in' after variable name".to_string(),
+        )?;
+        let range = self.expression()?;
+        let body = self.block_statement()?;
+
+        Ok(Statement::For {
+            variable,
+            range: Box::new(range),
+            body: Box::new(body),
+        })
     }
 
     fn expression_statement(&mut self) -> Result<Statement, Error> {
@@ -354,7 +380,6 @@ impl<'a> Parser<'a> {
                 right: Box::new(right),
             };
         }
-
 
         Ok(expr)
     }
