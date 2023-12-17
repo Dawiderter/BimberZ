@@ -3,11 +3,11 @@ y = false
 print y
 
 {
-    y = true
+    x = true
     print y
 }
 
-print y
+print x
 
 for i in 2..5 {
     print i

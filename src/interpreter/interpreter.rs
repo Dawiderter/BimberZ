@@ -1,3 +1,5 @@
+use std::mem::swap;
+
 use crate::parser::{
     error::Error,
     parser::{Expression, Statement, Value},
@@ -7,16 +9,16 @@ use crate::parser::{
 use super::environment::Environment;
 
 #[derive(Debug)]
-struct Interpreter<'a> {
-    environment: &'a mut Environment<'a>,
+struct Interpreter<'s> {
+    environment: Environment<'s>,
 }
 
-impl<'a> Interpreter<'a> {
-    fn new(environment: &'a mut Environment<'a>) -> Self {
+impl<'s> Interpreter<'s> {
+    fn new(environment: Environment<'s>) -> Self {
         Self { environment }
     }
 
-    fn execute<'b>(&mut self, statement: &'a Statement) -> Result<(), Error> {
+    fn execute(&mut self, statement: &'s Statement) -> Result<(), Error> {
         match statement {
             Statement::Expression { expr } => {
                 self.evaluate(expr)?;
@@ -61,28 +63,26 @@ impl<'a> Interpreter<'a> {
 
     fn execute_block(
         &mut self,
-        statements: &'a Vec<Statement>,
+        statements: &'s Vec<Statement>,
     ) -> Result<(), Error> {
-        let previous = &self.environment;
-
-        let mut environment = Environment::new(Some(self.environment));
-
-        self.environment = &mut environment;
+        let mut env = Environment::new(None);
+        swap(&mut env, &mut self.environment);
+        self.environment.enclosing = Some(Box::new(env));
 
         for statement in statements {
             self.execute(statement)?;
         }
 
-        self.environment = *previous;
+        self.environment = *self.environment.enclosing.take().unwrap();
 
         Ok(())
     }
 
     fn for_statement(
         &mut self,
-        name: &'a Token,
-        range: &'a Expression,
-        body: &'a Statement,
+        name: &'s Token,
+        range: &'s Expression,
+        body: &'s Statement,
     ) -> Result<(), Error> {
         let range = self.evaluate(range)?;
 
@@ -101,7 +101,7 @@ impl<'a> Interpreter<'a> {
         Ok(())
     }
 
-    fn evaluate(&mut self, expression: &'a Expression) -> Result<Value, Error> {
+    fn evaluate(&mut self, expression: &'s Expression) -> Result<Value, Error> {
         match expression {
             Expression::Value(value) => self.evaluate_value(*value),
             Expression::Unary { operator, right } => self.evaluate_unary(operator, right),
@@ -130,7 +130,7 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn evaluate_unary(&mut self, operator: &Token, right: &'a Expression) -> Result<Value, Error> {
+    fn evaluate_unary(&mut self, operator: &'s Token, right: &'s Expression) -> Result<Value, Error> {
         let right = self.evaluate(right)?;
 
         match operator.token_type {
@@ -149,9 +149,9 @@ impl<'a> Interpreter<'a> {
 
     fn evaluate_binary(
         &mut self,
-        operator: &'a Token,
-        left: &'a Expression,
-        right: &'a Expression,
+        operator: &'s Token,
+        left: &'s Expression,
+        right: &'s Expression,
     ) -> Result<Value, Error> {
         let left = self.evaluate(left)?;
         let right = self.evaluate(right)?;
@@ -246,9 +246,9 @@ impl<'a> Interpreter<'a> {
 
     fn evaluate_logical(
         &mut self,
-        operator: &'a Token,
-        left: &'a Expression,
-        right: &'a Expression,
+        operator: &'s Token,
+        left: &'s Expression,
+        right: &'s Expression,
     ) -> Result<Value, Error> {
         let left = self.evaluate(left)?;
 
@@ -282,8 +282,8 @@ impl<'a> Interpreter<'a> {
 
     fn evaluate_assign(
         &mut self,
-        assignee: &'a Expression,
-        value: &'a Expression,
+        assignee: &'s Expression,
+        value: &'s Expression,
     ) -> Result<Value, Error> {
         let value = self.evaluate(value)?;
 
@@ -300,8 +300,8 @@ impl<'a> Interpreter<'a> {
 
     fn evaluate_variable(
         &mut self,
-        name: &'a Token,
-        member: &'a Option<Box<Expression>>,
+        name: &'s Token,
+        member: &'s Option<Box<Expression>>,
     ) -> Result<Value, Error> {
         let name = name.lexeme.as_str();
         let value = self.environment.get(name)?;
@@ -311,10 +311,12 @@ impl<'a> Interpreter<'a> {
 }
 
 pub fn interpret(statements: Vec<Statement>) -> Result<(), Error> {
-    let mut environment = Environment::default();
-    let mut interpreter = Interpreter::new(&mut environment);
+    let environment = Environment::default();
+    let mut interpreter = Interpreter::new(environment);
+
     for statement in &statements {
         interpreter.execute(statement)?;
     }
+
     Ok(())
 }

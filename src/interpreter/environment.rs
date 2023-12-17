@@ -1,22 +1,22 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, mem::swap};
 
 use crate::parser::{error::Error, parser::Value};
 
 #[derive(Debug)]
-pub struct Environment<'a> {
-    variables: HashMap<&'a str, Value>,
-    pub enclosing: Option<&'a mut Environment<'a>>,
+pub struct Environment<'s> {
+    variables: HashMap<&'s str, Value>,
+    pub enclosing: Option<Box<Environment<'s>>>,
 }
 
-impl<'a> Environment<'a> {
-    pub fn new(enclosing: Option<&'a mut Environment<'a>>) -> Self {
+impl<'s> Environment<'s> {
+    pub fn new(enclosing: Option<Environment<'s>>) -> Self {
         Self {
             variables: HashMap::new(),
-            enclosing,
+            enclosing: enclosing.map(Box::new),
         }
     }
 
-    pub fn get(&self, name: &'a str) -> Result<&Value, Error> {
+    pub fn get(&self, name: &str) -> Result<&Value, Error> {
         if self.variables.contains_key(name) {
             return Ok(self.variables.get(name).unwrap());
         }
@@ -30,7 +30,7 @@ impl<'a> Environment<'a> {
         })
     }
 
-    pub fn assign(&mut self, name: &'a str, value: Value) {
+    pub fn assign(&mut self, name: &'s str, value: Value) {
         if self.variables.contains_key(name) {
             self.variables.insert(name, value);
             return;
@@ -47,7 +47,7 @@ impl<'a> Environment<'a> {
         }
     }
 
-    fn assign_enclosing(&mut self, name: &'a str, value: Value) -> bool {
+    fn assign_enclosing(&mut self, name: &'s str, value: Value) -> bool {
         if self.variables.contains_key(name) {
             self.variables.insert(name, value);
             return true;
@@ -61,7 +61,7 @@ impl<'a> Environment<'a> {
     }
 }
 
-impl<'a> Default for Environment<'a> {
+impl<'s> Default for Environment<'s> {
     fn default() -> Self {
         Self::new(None)
     }
