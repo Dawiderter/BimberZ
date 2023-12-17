@@ -1,0 +1,26 @@
+struct circle {
+    center: (num, num)
+    r:       num
+}
+
+struct vec {
+    x: Point,
+    y
+}
+
+z = vec
+
+z.xy = z.yx
+
+c = vec
+y = (10, 10)
+x = (5, 5)
+move c.x.y y
+
+z.x.y.y
+
+z.x.y.z = 5
+
+c = circle (10,10) 5
+vec = [10, 50]
+map = {5: 2}

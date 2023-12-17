@@ -1,0 +1,11 @@
+y = false
+
+for i in 2..5 {
+    print i
+}
+
+if y {
+    print 5
+} else {
+    print 6
+}
