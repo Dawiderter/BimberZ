@@ -14,7 +14,8 @@ block                   ->      "{" declaration "}"
 ## Expressions
 expression              ->      assignment
 
-assignment              ->      variable "=" expression | logic_or
+assignment              ->      variable "=" expression | ternary
+ternary                 ->      logic_or ( "if" logic_or "else" logic_or)?
 logic_or                ->      logic_and ( "or" logic_and )*
 logic_and               ->      equality ( "and" equality )*
 equality                ->      comparison ( ( "!=" | "==" ) comparison)*

@@ -118,6 +118,7 @@ impl<'s> Interpreter<'s> {
             Expression::Grouping { expr } => self.evaluate(expr),
             Expression::Assign { assignee, value } => self.evaluate_assign(assignee, value),
             Expression::Variable { name, member } => self.evaluate_variable(name, member),
+            Expression::Ternary { condition, then_branch, else_branch } => self.evaluate_ternary(condition, then_branch, else_branch),
         }
     }
 
@@ -307,6 +308,26 @@ impl<'s> Interpreter<'s> {
         let value = self.environment.get(name)?;
 
         Ok(*value)
+    }
+
+    fn evaluate_ternary(
+        &mut self,
+        condition: &'s Expression,
+        then_branch: &'s Expression,
+        else_branch: &'s Expression,
+    ) -> Result<Value, Error> {
+        let condition = self.evaluate(condition)?;
+
+        match condition {
+            Value::Boolean(bool) => {
+                if bool {
+                    self.evaluate(then_branch)
+                } else {
+                    self.evaluate(else_branch)
+                }
+            }
+            _ => Err(Error::new("Expected boolean".to_string())),
+        }
     }
 }
 

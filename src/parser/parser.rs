@@ -56,6 +56,11 @@ pub enum Expression {
         name: Token,
         member: Option<Box<Expression>>,
     },
+    Ternary {
+        condition: Box<Expression>,
+        then_branch: Box<Expression>,
+        else_branch: Box<Expression>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -256,7 +261,7 @@ impl<'a> Parser<'a> {
     }
 
     fn assignment_expression(&mut self) -> Result<Expression, Error> {
-        let expr = self.logic_or_expression()?;
+        let expr = self.ternary_expression()?;
 
         if self.match_next(&[TokenType::Equals]) {
             let _equals = self.chop().unwrap();
@@ -272,6 +277,28 @@ impl<'a> Parser<'a> {
             return Err(Error::new(
                 "Can't assign that expression to a variable".to_string(),
             ));
+        }
+
+        Ok(expr)
+    }
+
+    fn ternary_expression(&mut self) -> Result<Expression, Error> {
+        let expr = self.logic_or_expression()?;
+
+        if self.match_next(&[TokenType::If]) {
+            let _if = self.chop().unwrap();
+            let condition = self.expression()?;
+            let _else = self.expect(
+                TokenType::Else,
+                "Expected 'else' after ternary condition".to_string(),
+            )?;
+            let else_branch = self.expression()?;
+
+            return Ok(Expression::Ternary {
+                condition: Box::new(condition),
+                then_branch: Box::new(expr),
+                else_branch: Box::new(else_branch),
+            });
         }
 
         Ok(expr)
