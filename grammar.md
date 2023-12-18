@@ -4,11 +4,13 @@ program                 ->      declaration* EOF
 declaration             ->      statement
 
 ## Statements
-statement               ->      expression_statement | print_statement | if_statement | Block
+statement               ->      expression_statement | print_statement | if_statement | for_statement | while_statement | block
 
 expression_statement    ->      expression "\n"
 print_statement         ->      "print" expression "\n"
 if_statement            ->      "if" expression block ("else" block)?
+for_statement           ->      "for" IDENTIFIER in expression block
+while_statement         ->      "while" expression block
 block                   ->      "{" declaration "}"
 
 ## Expressions
