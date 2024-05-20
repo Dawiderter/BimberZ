@@ -19,8 +19,7 @@ impl Frame {
             pub fn width(&self) -> u32;
             pub fn height(&self) -> u32;
             pub fn put_pixel(&mut self, x: u32, y: u32, color: Color);
-            pub fn draw_shape_filled(&mut self, shape: impl Shape, color: Color);
-            pub fn draw_shape_stroke(&mut self, shape: impl Shape, color: Color);
+            pub fn draw_shape(&mut self, shape: impl Shape);
             pub fn clear(&mut self, color: Color);
         }
     }

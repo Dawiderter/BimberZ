@@ -49,25 +49,14 @@ impl PixelBuffer {
         rect(vec2(0, 0), vec2(self.width as i32 - 1, self.height as i32 - 1))
     }
 
-    pub fn draw_shape_filled(&mut self, shape: impl Shape, color: Color) {
+    pub fn draw_shape(&mut self, shape: impl Shape) {
         let bb = shape.bounding_box().intersection(self.frame_rect());
 
         for x in bb.top_left.x..=bb.bot_right.x {
             for y in bb.top_left.y..=bb.bot_right.y {
-                if shape.dist(vec2(x, y)) < 0.5 {
-                    self.put_pixel(x as u32, y as u32, color);
-                }
-            }
-        }
-    }
-
-    pub fn draw_shape_stroke(&mut self, shape: impl Shape, color: Color) {
-        let bb = shape.bounding_box().intersection(self.frame_rect());
-
-        for x in bb.top_left.x..=bb.bot_right.x {
-            for y in bb.top_left.y..=bb.bot_right.y {
-                if (-0.5..0.5).contains(&shape.dist(vec2(x, y))) {
-                    self.put_pixel(x as u32, y as u32, color);
+                let frag = shape.frag(vec2(x, y));
+                if frag.dist <= 0.0 {
+                    self.put_pixel(x as u32, y as u32, frag.color);
                 }
             }
         }

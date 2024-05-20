@@ -1,4 +1,4 @@
-use std::ops::{Add, Div, Mul, Sub};
+use std::{ops::{Add, Div, Mul, Sub, Neg}, process::Output};
 
 pub type IVec2 = Vec2<i32>;
 pub type UVec2 = Vec2<u32>;
@@ -34,6 +34,10 @@ impl Vec2<u32> {
     pub const ZERO : Self = vec2(0, 0);
 
     pub fn to_float(self) -> Vec2<f32> {
+        self.into()
+    }
+
+    pub fn to_sign(self) -> Vec2<i32> {
         self.into()
     }
 }
@@ -169,6 +173,16 @@ impl<T: Sub<Output = T>> Sub for Vec2<T> {
     }
 }
 
+impl<T: Neg<Output = T>> Neg for Vec2<T> {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Self { x: -self.x, y: -self.y }
+    }
+
+    
+}
+
 impl<T: Mul<Output = T> + Copy> Mul<T> for Vec2<T> {
     type Output = Self;
 
@@ -194,6 +208,12 @@ impl<T: Div<Output = T> + Copy> Div<T> for Vec2<T> {
 impl From<Vec2<i32>> for Vec2<f32> {
     fn from(value: Vec2<i32>) -> Self {
         Self { x: value.x as f32, y: value.y as f32 }
+    }
+}
+
+impl From<Vec2<u32>> for Vec2<i32> {
+    fn from(value: Vec2<u32>) -> Self {
+        Self { x: value.x as i32, y: value.y as i32 }
     }
 }
 
