@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 use bimberz::{
     drawing::{
         color::Color,
-        shapes::{
+        renderer::{
             circle::Circle,
             coloring::IntoColored,
             composite::{ShapeDiff, ShapeUnion},

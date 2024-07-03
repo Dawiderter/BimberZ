@@ -8,11 +8,14 @@ pub const fn vec2<T>(x: T, y: T) -> Vec2<T> {
     Vec2::new(x, y)
 }
 
-#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, bytemuck::AnyBitPattern)]
 pub struct Vec2<T> {
     pub x: T,
     pub y: T,
 }
+
+unsafe impl bytemuck::NoUninit for Vec2<f32> { }
 
 impl<T> Vec2<T> {
     pub const fn new(x: T, y: T) -> Self {

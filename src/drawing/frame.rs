@@ -1,26 +1,22 @@
 use delegate::delegate;
 
-use super::{pixelbuffer::PixelBuffer, input::{Input, self}, color::Color, shapes::shape::Shape};
+use super::{renderer::bindings::{Bind, Bindings}, color::Color, input::{self, Input}};
 
 pub struct Frame {
-    pub(crate) buffer: PixelBuffer,
+    pub bindings: Bindings,
     pub(crate) input: Input,
 }
 
 impl Frame {
     pub fn new(width: u32, height: u32) -> Self {
-        Self { buffer: PixelBuffer::new(width, height), input: Input::init() }
+        Self { input: Input::init(), bindings: Bindings::new() }
     }
 }
 
 impl Frame {
     delegate! {
-        to self.buffer {
-            pub fn width(&self) -> u32;
-            pub fn height(&self) -> u32;
-            pub fn put_pixel(&mut self, x: u32, y: u32, color: Color);
-            pub fn draw_shape(&mut self, shape: impl Shape);
-            pub fn clear(&mut self, color: Color);
+        to self.bindings {
+            pub fn bind<T>(&mut self, slot: usize) -> Bind<T>;
         }
     }
 }

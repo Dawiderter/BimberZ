@@ -1,13 +1,14 @@
 use tracing::{error, info};
 use winit::event::{Event, WindowEvent};
 
-use super::{backend::rendering::RenderState, frame::Frame};
+use super::{backend::rendering::RenderState, fps_counter::FPSCounter, frame::Frame};
 
 pub struct Window {
     inner: winit::window::Window,
     event_loop: winit::event_loop::EventLoop<()>,
-    render_state: RenderState,
-    frame: Frame,
+    fps_counter: FPSCounter,
+    pub render_state: RenderState,
+    pub frame: Frame,
 }
 
 impl Window {
@@ -39,7 +40,8 @@ impl Window {
             inner: window,
             event_loop,
             render_state,
-            frame
+            frame,
+            fps_counter: FPSCounter::new(),
         }
     }
 
@@ -80,7 +82,10 @@ impl Window {
                         ..
                     } => {
                         f(&mut self.frame);
-                        self.render_state.write_buffer_to_screen(&self.frame.buffer);
+
+                        self.render_state.update_bindings(&mut self.frame.bindings);
+                        
+                        //self.render_state.write_buffer_to_screen(&self.frame.buffer);
 
                         match self.render_state.render_routine() {
                             Ok(_) => {}
@@ -90,6 +95,12 @@ impl Window {
                         }
 
                         self.frame.input.clear_tapped();
+
+                        self.fps_counter.advance_frame();
+                        if self.fps_counter.curr_duration() >= std::time::Duration::from_secs(5) {
+                            info!("FPS: {}", self.fps_counter.fps());
+                            self.fps_counter.reset();
+                        }
                     }
                     _ => (),
                 }

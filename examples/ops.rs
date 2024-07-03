@@ -1,7 +1,7 @@
 use bimberz::{
     drawing::{
         color::Color,
-        shapes::{
+        renderer::{
             circle::Circle,
             rect::RectShape, transf::IntoTransformed, coloring::IntoColored,
         },

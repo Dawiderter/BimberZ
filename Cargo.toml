@@ -14,3 +14,4 @@ phf = { version = "0.11.2", features = ["macros"] }
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
 delegate = "0.11.0"
+glam = { version = "0.27.0", features = ["bytemuck"] }

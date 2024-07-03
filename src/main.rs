@@ -2,49 +2,68 @@ use std::f32::consts::PI;
 
 use bimberz::{
     drawing::{
-        color::Color,
-        shapes::{
-            circle::Circle,
-            coloring::IntoColored,
-            composite::{ShapeDiff, ShapeUnion},
-            rect::RectShape,
-            shape::Shape,
-            transf::{IntoTransformed, TransformedShape},
-        },
-        window::Window,
+        color::Color, renderer::{scene::Scene, shape::Shape, sphere, torus}, window::Window
     },
     math::{
         rect::rect,
         transf::Transform,
-        vector::{vec2, IVec2, Vec2},
     },
 };
+use glam::{vec2, Vec2};
 use tracing::info;
 use winit::{event::MouseButton, keyboard::KeyCode};
 
 fn main() {
-    let width = 220u32;
-    let height = 120u32;
+    let width = 600u32;
+    let height = 600u32;
 
-    let window = pollster::block_on(Window::init(width, height, 5));
+    let mut window = pollster::block_on(Window::init(width, height, 1));
 
-    let mut r = 0.0;
+    let camera_pos = window.frame.bind::<glam::Vec3>(1);
+    *camera_pos.val() = glam::Vec3::new(0.0, 0.0, -5.0);
 
-    let shape = RectShape::new(vec2(80, 10)).colored(Color::RED)
-        + Circle::new(8).moved(vec2(40.0, 0.0)).colored(Color::GREEN)
-        + Circle::new(8).moved(vec2(-40.0, 0.0)).colored(Color::BLUE);
+    let mut camera_angle : f32 = 0.0;
+
+    let radius = window.frame.bind::<f32>(0);
+    *radius.val() = 1.0;
+
+    let tor = window.frame.bind::<Vec2>(2);
+    *tor.val() = vec2(2.0, 0.5);
+
+    window.render_state.update_bindings(&mut window.frame.bindings);
+
+    let scene = Scene { shape: torus(tor.clone()) };
+
+    window.render_state.set_shader(&scene.to_wgsl());
 
     window.run(|frame| {
-        frame.clear(Color::BLACK);
+        let mut pos = camera_pos.val();
+        let mut radius = radius.val();
+        let mut tor = tor.val();
 
         if frame.is_key_pressed(KeyCode::ArrowLeft) {
-            r -= 0.01;
-        }
-
+            tor.x += 0.01;
+        }  
         if frame.is_key_pressed(KeyCode::ArrowRight) {
-            r += 0.01;
+            tor.x -= 0.01;
+        } 
+
+        if frame.is_key_pressed(KeyCode::ArrowUp) {
+            tor.y -= 0.01;
+        }  
+        if frame.is_key_pressed(KeyCode::ArrowDown) {
+            tor.y += 0.01;
         }
 
-        frame.draw_shape(shape.stroked(5).rotated(r).moved(vec2(110.0, 60.0)));
+        
+        if frame.is_key_pressed(KeyCode::KeyD) {
+            camera_angle += 0.01;
+        }  
+        if frame.is_key_pressed(KeyCode::KeyA) {
+            camera_angle -= 0.01;
+        }
+
+        pos.x = -5.0 * camera_angle.sin();
+        pos.z = -5.0 * camera_angle.cos();
     })
 }
