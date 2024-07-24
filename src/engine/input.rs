@@ -1,7 +1,10 @@
-use winit::{keyboard::{PhysicalKey, KeyCode}, event::{Event, MouseButton, WindowEvent, ElementState, DeviceEvent, KeyEvent}};
+use winit::{
+    event::{DeviceEvent, ElementState, Event, KeyEvent, MouseButton, WindowEvent},
+    keyboard::{KeyCode, PhysicalKey},
+};
 
-pub use winit::keyboard::KeyCode as Key;
 pub use winit::event::MouseButton as Mouse;
+pub use winit::keyboard::KeyCode as Key;
 
 /// Referencja
 /// KeyCode z Winit
@@ -24,50 +27,50 @@ pub struct Input {
     tapped_key: [bool; NUM_OF_KEYS],
     pressed_mouse: [bool; NUM_OF_MOUSE_BUTTONS],
     tapped_mouse: [bool; NUM_OF_MOUSE_BUTTONS],
-    mouse_position: (f64,f64),
-    mouse_motion: (f64,f64),
+    mouse_position: (f64, f64),
+    mouse_motion: (f64, f64),
 }
 
 impl Input {
-    pub fn init() -> Self {
+    pub fn new() -> Self {
         Self {
             pressed_key: [false; NUM_OF_KEYS],
             tapped_key: [false; NUM_OF_KEYS],
             pressed_mouse: [false; NUM_OF_MOUSE_BUTTONS],
             tapped_mouse: [false; NUM_OF_MOUSE_BUTTONS],
-            mouse_position: (0.0,0.0),
-            mouse_motion: (0.0,0.0),
+            mouse_position: (0.0, 0.0),
+            mouse_motion: (0.0, 0.0),
         }
     }
 
-    pub fn is_key_pressed(&self, code : KeyCode) -> bool{
+    pub fn is_key_pressed(&self, code: KeyCode) -> bool {
         self.pressed_key[code as usize]
     }
 
-    pub fn is_mouse_pressed(&self, button: MouseButton) -> bool{
+    pub fn is_mouse_pressed(&self, button: MouseButton) -> bool {
         self.pressed_mouse[Self::button_id(button)]
     }
 
-    pub fn on_key_tap(&self, code : KeyCode) -> bool{
+    pub fn on_key_tap(&self, code: KeyCode) -> bool {
         self.tapped_key[code as usize]
     }
 
-    pub fn on_mouse_tap(&self, button: MouseButton) -> bool{
+    pub fn on_mouse_tap(&self, button: MouseButton) -> bool {
         self.tapped_mouse[Self::button_id(button)]
     }
 
-    pub fn mouse_position(&self) -> (f64,f64) {
+    pub fn mouse_position(&self) -> (f64, f64) {
         self.mouse_position
     }
 
-    pub fn mouse_motion(&self) -> (f64,f64) {
+    pub fn mouse_motion(&self) -> (f64, f64) {
         self.mouse_motion
     }
 
     pub fn clear_tapped(&mut self) {
         self.tapped_key = [false; NUM_OF_KEYS];
         self.tapped_mouse = [false; NUM_OF_MOUSE_BUTTONS];
-        self.mouse_motion = (0.0,0.0);
+        self.mouse_motion = (0.0, 0.0);
     }
 
     pub fn register_event(&mut self, event: &Event<()>) {
@@ -88,7 +91,7 @@ impl Input {
                         self.pressed_mouse[button_id] = false;
                     }
                 }
-            },
+            }
             Event::WindowEvent {
                 event: WindowEvent::CursorMoved { position, .. },
                 ..
@@ -98,7 +101,12 @@ impl Input {
             Event::WindowEvent {
                 event:
                     WindowEvent::KeyboardInput {
-                        event : KeyEvent { physical_key : PhysicalKey::Code(keycode) , state, ..},
+                        event:
+                            KeyEvent {
+                                physical_key: PhysicalKey::Code(keycode),
+                                state,
+                                ..
+                            },
                         ..
                     },
                 ..
@@ -115,15 +123,14 @@ impl Input {
                         self.pressed_key[key_id] = false;
                     }
                 }
-            },
+            }
             Event::DeviceEvent {
-                event:
-                    DeviceEvent::MouseMotion { delta },
+                event: DeviceEvent::MouseMotion { delta },
                 ..
             } => {
                 self.mouse_motion.0 += delta.0;
                 self.mouse_motion.1 += delta.1;
-            },
+            }
             _ => {}
         }
     }
@@ -135,5 +142,11 @@ impl Input {
             MouseButton::Middle => 2,
             _ => 3,
         }
+    }
+}
+
+impl Default for Input {
+    fn default() -> Self {
+        Self::new()
     }
 }

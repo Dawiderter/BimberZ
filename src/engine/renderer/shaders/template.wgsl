@@ -12,13 +12,7 @@ struct VertexOutput {
 // }
 
 struct UserData {
-    s0: f32,
-    _p: u32,
-    _p: u32,
-    _p: u32,
-    s1: vec3f,
-    _p: u32,
-    s2: vec2f,
+    {{USER_DATA}}
 }
 
 @group(0) @binding(0)
@@ -33,9 +27,14 @@ fn torus(p: vec3f, t: vec2f) -> f32 {
     return length(q) - t.y;
 }
 
+fn box(p: vec3f, b: vec3f) -> f32 {
+    let q = abs(p) - b;
+    return length(max(q,vec3f(0.0))) + min(max(q.x,max(q.y,q.z)),0.0);
+}
+
 fn scene(p : vec3f) -> f32 {
 
-    let d = //{{SCENE}} ;
+    let d = {{SCENE}};
 
     return d;
 }
@@ -98,5 +97,3 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     return vec4(color, 0.0);
 }
-
- 
