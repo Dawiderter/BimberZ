@@ -237,6 +237,7 @@ impl Raymarcher {
                 UniformValue::F32(_) => "f32",
                 UniformValue::Vec2(_) => "vec2f",
                 UniformValue::Vec3(_) => "vec3f",
+                UniformValue::Quat(_) => "vec4f",
             };
             writeln!(desc, "s{i} : {kind},").unwrap();
             let padding_left = (UNIFORM_SIZE - size) / 4;

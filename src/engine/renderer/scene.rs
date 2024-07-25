@@ -1,38 +1,38 @@
-use std::borrow::Cow;
+use std::fmt::Display;
 
-use glam::{Vec2, Vec3};
+use glam::{Quat, Vec2, Vec3};
 
 use super::uniforms::Uniform;
 
-pub fn sphere(radius: impl Into<ConstOrUniform<f32>>) -> Shape<'static> {
-    Shape::new("sphere", vec![radius.into().into()])
+pub fn sdsphere(radius: impl Into<ConstOrUniform<f32>>) -> SceneNode {
+    SceneNode::Shape(Shape(WgslCall::new(
+        "sdsphere".into(),
+        vec![radius.into().into()],
+    )))
 }
 
-pub fn sdbox(half_diag: impl Into<ConstOrUniform<Vec3>>) -> Shape<'static> {
-    Shape::new("box", vec![half_diag.into().into()])
+pub fn sdbox(half_diag: impl Into<ConstOrUniform<Vec3>>) -> SceneNode {
+    SceneNode::Shape(Shape(WgslCall::new(
+        "sdbox".into(),
+        vec![half_diag.into().into()],
+    )))
 }
 
 pub struct Scene {
-    pub shape: Shape<'static>,
+    pub shape: SceneNode,
     pub has_changed: bool,
 }
 
 impl Scene {
     pub fn new() -> Self {
         Self {
-            shape: sphere(0.0),
+            shape: sdsphere(0.0),
             has_changed: true,
         }
     }
 
     pub fn to_wgsl(&self) -> String {
-        let mut res = String::new();
-
-        res.push_str(&self.shape.to_wgsl_begin());
-        res.push('p');
-        res.push_str(&self.shape.to_wgsl_end());
-
-        res
+        format!("{}", SceneWgsl { scene: self })
     }
 }
 
@@ -42,39 +42,149 @@ impl Default for Scene {
     }
 }
 
-pub enum ConstOrUniform<T> {
-    Const(T),
-    Uniform(Uniform<T>),
+#[derive(Debug)]
+pub enum SceneNode {
+    Shape(Shape),
+    Operator(Operator),
+}
+
+#[derive(Debug)]
+pub struct Shape(WgslCall);
+
+#[derive(Debug)]
+pub struct Operator {
+    nodes: Vec<SceneNode>,
+    call: WgslCall,
+    modifier: Option<PointModifier>,
+}
+
+impl SceneNode {
+    pub fn translated(self, t: impl Into<ConstOrUniform<Vec3>>) -> Self {
+        Self::Operator(Operator {
+            nodes: vec![self],
+            call: WgslCall::new("translate".into(), vec![]),
+            modifier: Some(PointModifier(WgslCall {
+                func: "invtranslate".into(),
+                parameters: vec![t.into().into()],
+            })),
+        })
+    }
+    pub fn rotated(self, t: impl Into<ConstOrUniform<Quat>>) -> Self {
+        Self::Operator(Operator {
+            nodes: vec![self],
+            call: WgslCall::new("rotate".into(), vec![]),
+            modifier: Some(PointModifier(WgslCall {
+                func: "invrotate".into(),
+                parameters: vec![t.into().into()],
+            })),
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
-pub struct ShapeParameter(String);
+struct PointModifier(WgslCall);
 
-#[derive(Debug)]
-pub struct Shape<'a> {
-    pub func: Cow<'a, str>,
-    pub parameters: Vec<ShapeParameter>,
+#[derive(Debug, Clone)]
+struct Parameter(String);
+
+#[derive(Debug, Clone)]
+struct WgslCall {
+    func: String,
+    parameters: Vec<Parameter>,
 }
 
-impl<'a> Shape<'a> {
-    pub fn new(func: impl Into<Cow<'a, str>>, parameters: Vec<ShapeParameter>) -> Self {
-        Self {
-            func: func.into(),
-            parameters,
+struct SceneWgsl<'scene> {
+    scene: &'scene Scene,
+}
+
+struct WgslPrologue<'call> {
+    call: &'call WgslCall,
+}
+
+struct WgslEpilogue<'shape> {
+    call: &'shape WgslCall,
+}
+
+impl Display for Parameter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl<'scene> Display for SceneWgsl<'scene> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut modifiers = Vec::new();
+        self.scene.shape.fmt_wgsl(f, &mut modifiers)
+    }
+}
+
+impl SceneNode {
+    fn fmt_wgsl(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        modifiers: &mut Vec<PointModifier>,
+    ) -> std::fmt::Result {
+        match self {
+            SceneNode::Shape(shape) => {
+                write!(f, "{}", shape.0.prologue())?;
+                for modifier in modifiers.iter().rev() {
+                    write!(f, "{}", modifier.0.prologue())?;
+                }
+                write!(f, "p")?;
+                for modifier in modifiers.iter() {
+                    write!(f, ",{}", modifier.0.epilogue())?;
+                }
+                write!(f, ",{}", shape.0.epilogue())?
+            }
+            SceneNode::Operator(operator) => {
+                if let Some(modifier) = &operator.modifier {
+                    modifiers.push(modifier.clone())
+                }
+                write!(f, "{}", operator.call.prologue())?;
+                for node in &operator.nodes {
+                    node.fmt_wgsl(f, modifiers)?;
+                    write!(f, ",")?;
+                }
+                write!(f, "{}", operator.call.epilogue())?;
+                if operator.modifier.is_some() {
+                    modifiers.pop();
+                }
+            }
         }
+        Ok(())
     }
-    pub fn to_wgsl_begin(&self) -> String {
-        format!("{}(", self.func)
+}
+
+impl WgslCall {
+    fn new(func: String, parameters: Vec<Parameter>) -> Self {
+        Self { func, parameters }
     }
-    pub fn to_wgsl_end(&self) -> String {
-        let mut s = String::new();
-        for param in &self.parameters {
-            s.push(',');
-            s.push_str(&param.0);
+    fn prologue(&self) -> WgslPrologue {
+        WgslPrologue { call: self }
+    }
+    fn epilogue(&self) -> WgslEpilogue {
+        WgslEpilogue { call: self }
+    }
+}
+
+impl<'shape> Display for WgslPrologue<'shape> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}(", self.call.func)
+    }
+}
+
+impl<'shape> Display for WgslEpilogue<'shape> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for param in &self.call.parameters {
+            write!(f, "{},", param)?;
         }
-        s.push(')');
-        s
+        write!(f, ")")
     }
+}
+
+pub enum ConstOrUniform<T> {
+    Const(T),
+    Uniform(Uniform<T>),
 }
 
 impl From<f32> for ConstOrUniform<f32> {
@@ -101,7 +211,7 @@ impl<T> From<Uniform<T>> for ConstOrUniform<T> {
     }
 }
 
-impl<T: Into<ShapeParameter>> From<ConstOrUniform<T>> for ShapeParameter {
+impl<T: Into<Parameter>> From<ConstOrUniform<T>> for Parameter {
     fn from(value: ConstOrUniform<T>) -> Self {
         match value {
             ConstOrUniform::Const(c) => c.into(),
@@ -110,46 +220,60 @@ impl<T: Into<ShapeParameter>> From<ConstOrUniform<T>> for ShapeParameter {
     }
 }
 
-impl From<f32> for ShapeParameter {
+impl From<f32> for Parameter {
     fn from(value: f32) -> Self {
-        ShapeParameter(format!("{value:?}"))
+        Parameter(format!("{value:?}"))
     }
 }
 
-impl From<Vec2> for ShapeParameter {
+impl From<Vec2> for Parameter {
     fn from(value: Vec2) -> Self {
-        ShapeParameter(format!("vec2f({:?},{:?})", value.x, value.y))
+        Parameter(format!("vec2f({:?},{:?})", value.x, value.y))
     }
 }
 
-impl From<Vec3> for ShapeParameter {
+impl From<Vec3> for Parameter {
     fn from(value: Vec3) -> Self {
-        ShapeParameter(format!("vec2f({:?},{:?})", value.x, value.y))
+        Parameter(format!("vec3f({:?},{:?},{:?})", value.x, value.y, value.z))
     }
 }
 
-impl<T> From<Uniform<T>> for ShapeParameter {
+impl From<Quat> for Parameter {
+    fn from(value: Quat) -> Self {
+        Parameter(format!(
+            "vec4f({:?},{:?},{:?},{:?})",
+            value.x, value.y, value.z, value.w
+        ))
+    }
+}
+
+impl<T> From<Uniform<T>> for Parameter {
     fn from(value: Uniform<T>) -> Self {
-        ShapeParameter(format!("data.s{}", value.idx()))
+        Parameter(format!("data.s{}", value.idx()))
     }
 }
 
-impl From<String> for ShapeParameter {
+impl From<String> for Parameter {
     fn from(value: String) -> Self {
-        ShapeParameter(value)
+        Parameter(value)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use glam::vec3;
+
     use super::*;
 
     #[test]
-    fn test_name() {
-        let shape = Shape {
-            func: "circle".into(),
-            parameters: vec![1.0.into()],
+    fn sphere_test() {
+        let node = sdsphere(5.0).translated(vec3(0.0, -1.0, 5.0));
+
+        let scene = Scene {
+            shape: node,
+            has_changed: false,
         };
-        eprintln!("{}p_t{}", shape.to_wgsl_begin(), shape.to_wgsl_end());
+
+        println!("{}", scene.to_wgsl());
     }
 }

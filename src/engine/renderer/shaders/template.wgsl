@@ -18,18 +18,46 @@ struct UserData {
 @group(0) @binding(0)
 var<uniform> data: UserData;
 
-fn sphere(p : vec3f, r : f32) -> f32 {
+fn quat_mult(a: vec4f, b: vec4f) -> vec4f {
+    return vec4f(
+        a.x * b.x - a.y * b.y - a.z * b.z - a.w * b.w,
+        a.x * b.y + a.y * b.x + a.z * b.w - a.w * b.z,
+        a.x * b.z - a.y * b.w + a.z * b.x + a.w * b.y,
+        a.x * b.w + a.y * b.z - a.z * b.y + a.w * b.x
+    );
+}
+
+fn sdsphere(p : vec3f, r : f32) -> f32 {
     return length(p) - r;
 }
 
-fn torus(p: vec3f, t: vec2f) -> f32 {
+fn sdtorus(p: vec3f, t: vec2f) -> f32 {
     let q = vec2(length(p.xy) - t.x, p.z);
     return length(q) - t.y;
 }
 
-fn box(p: vec3f, b: vec3f) -> f32 {
+fn sdbox(p: vec3f, b: vec3f) -> f32 {
     let q = abs(p) - b;
     return length(max(q,vec3f(0.0))) + min(max(q.x,max(q.y,q.z)),0.0);
+}
+
+fn translate(f: f32) -> f32 {
+    return f;
+}
+
+fn rotate(f: f32) -> f32 {
+    return f;
+}
+
+fn invtranslate(p: vec3f, t: vec3f) -> vec3f {
+    return p - t;
+}
+
+fn invrotate(p: vec3f, q: vec4f) -> vec3f {
+    let p4 = vec4f(0.0, p);
+    let qh = vec4f(q.w, q.x, q.y, q.z);
+    let qp = vec4f(q.w, -q.x, -q.y, -q.z);
+    return quat_mult(quat_mult(qp, p4), qh).yzw;
 }
 
 fn scene(p : vec3f) -> f32 {
@@ -39,7 +67,7 @@ fn scene(p : vec3f) -> f32 {
     return d;
 }
 
-const MAX_STEPS : i32 = 64;
+const MAX_STEPS : i32 = 128;
 const MIN_HIT_DIST : f32 = 0.001;
 const MAX_TRACE_DIST : f32 = 1000.0;
 
@@ -91,7 +119,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let camera_pos = vec3(0.0, 0.0, -5.0);
     let ro = camera_pos;
-    let rd = vec3(uv, 1.0);
+    let rt = vec3(uv, -3.0);
+    let rd = normalize(rt - ro);
 
     let color = ray_march(ro, rd);
 

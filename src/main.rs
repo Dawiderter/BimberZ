@@ -1,8 +1,10 @@
+use std::time::Instant;
+
 use bimberz::engine::{
-    renderer::scene::{sdbox, sphere},
+    renderer::scene::{sdbox, sdsphere},
     window::Window,
 };
-use glam::vec3;
+use glam::{vec3, Quat};
 use winit::keyboard::KeyCode;
 
 fn main() {
@@ -13,8 +15,12 @@ fn main() {
 
     let radius = window.uniforms().bind(1.0);
     let half_diag = window.uniforms().bind(vec3(1.0, 1.0, 1.0));
+    let translation = window.uniforms().bind(vec3(0.0, 0.0, 0.0));
+    let rotation = window.uniforms().bind(Quat::IDENTITY);
 
-    window.scene().shape = sphere(radius);
+    window.scene().shape = sdsphere(radius).translated(translation);
+
+    let start = Instant::now();
 
     window.run(|input, u, scene| {
         if input.is_key_pressed(KeyCode::KeyD) {
@@ -34,13 +40,36 @@ fn main() {
             u[half_diag].y -= 0.01;
         }
 
+        if input.is_key_pressed(KeyCode::ArrowRight) {
+            u[translation].x += 0.01;
+        }
+        if input.is_key_pressed(KeyCode::ArrowLeft) {
+            u[translation].x -= 0.01;
+        }
+        if input.is_key_pressed(KeyCode::ArrowUp) {
+            u[translation].y += 0.01;
+        }
+        if input.is_key_pressed(KeyCode::ArrowDown) {
+            u[translation].y -= 0.01;
+        }
+        if input.is_key_pressed(KeyCode::KeyI) {
+            u[translation].z += 0.01;
+        }
+        if input.is_key_pressed(KeyCode::KeyK) {
+            u[translation].z -= 0.01;
+        }
+
         if input.on_key_tap(KeyCode::KeyB) {
-            scene.shape = sdbox(half_diag);
+            scene.shape = sdbox(half_diag).rotated(rotation).translated(translation);
             scene.has_changed = true;
         }
         if input.on_key_tap(KeyCode::KeyC) {
-            scene.shape = sphere(radius);
+            scene.shape = sdsphere(radius).translated(translation);
             scene.has_changed = true;
         }
+
+        let now = start.elapsed().as_secs_f32();
+
+        u[rotation] = Quat::from_euler(glam::EulerRot::XYZ, now, 0.0, 0.0);
     })
 }

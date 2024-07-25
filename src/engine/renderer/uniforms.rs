@@ -12,6 +12,7 @@ pub enum UniformValue {
     F32(f32),
     Vec2(glam::Vec2),
     Vec3(glam::Vec3),
+    Quat(glam::Quat),
 }
 
 impl UniformValue {
@@ -20,6 +21,7 @@ impl UniformValue {
             UniformValue::F32(value) => bytemuck::bytes_of(value),
             UniformValue::Vec2(value) => bytemuck::bytes_of(value),
             UniformValue::Vec3(value) => bytemuck::bytes_of(value),
+            UniformValue::Quat(value) => bytemuck::bytes_of(value),
         }
     }
 
@@ -168,4 +170,5 @@ bindvalue_conv!(
     f32 => F32
     glam::Vec2 => Vec2
     glam::Vec3 => Vec3
+    glam::Quat => Quat
 );
