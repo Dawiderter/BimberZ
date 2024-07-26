@@ -41,19 +41,32 @@ fn sdbox(p: vec3f, b: vec3f) -> f32 {
     return length(max(q,vec3f(0.0))) + min(max(q.x,max(q.y,q.z)),0.0);
 }
 
-fn translate(f: f32) -> f32 {
+fn opround(f: f32, r: f32) -> f32 {
+    return f - r;
+}
+
+fn opunion(f1: f32, f2: f32) -> f32 {
+    return min(f1, f2);
+}
+
+fn opsmoothunion(f1: f32, f2: f32, k: f32) -> f32 {
+    let h = clamp(0.5 + 0.5 * (f2-f1) / k, 0.0, 1.0 );
+    return mix(f2, f1, h) - k * h * (1.0 - h);
+}
+
+fn optranslate(f: f32) -> f32 {
     return f;
 }
 
-fn rotate(f: f32) -> f32 {
+fn oprotate(f: f32) -> f32 {
     return f;
 }
 
-fn invtranslate(p: vec3f, t: vec3f) -> vec3f {
+fn opinvtranslate(p: vec3f, t: vec3f) -> vec3f {
     return p - t;
 }
 
-fn invrotate(p: vec3f, q: vec4f) -> vec3f {
+fn opinvrotate(p: vec3f, q: vec4f) -> vec3f {
     let p4 = vec4f(0.0, p);
     let qh = vec4f(q.w, q.x, q.y, q.z);
     let qp = vec4f(q.w, -q.x, -q.y, -q.z);
@@ -102,7 +115,7 @@ fn ray_march(ro : vec3f, rd: vec3f) -> vec3f {
 }
 
 fn calc_normals(p: vec3f) -> vec3f {
-    let small_step = vec2(0.001, 0.0);
+    let small_step = vec2(0.00001, 0.0);
 
     let gradient_x = scene(p + small_step.xyy) - scene(p - small_step.xyy);
     let gradient_y = scene(p + small_step.yxy) - scene(p - small_step.yxy);

@@ -60,7 +60,11 @@ fn main() {
         }
 
         if input.on_key_tap(KeyCode::KeyB) {
-            scene.shape = sdbox(half_diag).rotated(rotation).translated(translation);
+            scene.shape = sdbox(half_diag)
+                .rounded(0.5)
+                .smooth_union(sdsphere(1.0).translated(vec3(-1.5, 0.0, 0.0)), 0.25)
+                .rotated(rotation)
+                .translated(translation);
             scene.has_changed = true;
         }
         if input.on_key_tap(KeyCode::KeyC) {
@@ -70,6 +74,6 @@ fn main() {
 
         let now = start.elapsed().as_secs_f32();
 
-        u[rotation] = Quat::from_euler(glam::EulerRot::XYZ, now, 0.0, 0.0);
+        u[rotation] = Quat::from_euler(glam::EulerRot::XYZ, now / 3.0, now / 4.0, now / 2.0);
     })
 }

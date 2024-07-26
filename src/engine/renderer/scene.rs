@@ -62,21 +62,42 @@ impl SceneNode {
     pub fn translated(self, t: impl Into<ConstOrUniform<Vec3>>) -> Self {
         Self::Operator(Operator {
             nodes: vec![self],
-            call: WgslCall::new("translate".into(), vec![]),
+            call: WgslCall::new("optranslate".into(), vec![]),
             modifier: Some(PointModifier(WgslCall {
-                func: "invtranslate".into(),
+                func: "opinvtranslate".into(),
                 parameters: vec![t.into().into()],
             })),
         })
     }
-    pub fn rotated(self, t: impl Into<ConstOrUniform<Quat>>) -> Self {
+    pub fn rotated(self, q: impl Into<ConstOrUniform<Quat>>) -> Self {
         Self::Operator(Operator {
             nodes: vec![self],
-            call: WgslCall::new("rotate".into(), vec![]),
+            call: WgslCall::new("oprotate".into(), vec![]),
             modifier: Some(PointModifier(WgslCall {
-                func: "invrotate".into(),
-                parameters: vec![t.into().into()],
+                func: "opinvrotate".into(),
+                parameters: vec![q.into().into()],
             })),
+        })
+    }
+    pub fn rounded(self, r: impl Into<ConstOrUniform<f32>>) -> Self {
+        Self::Operator(Operator {
+            nodes: vec![self],
+            call: WgslCall::new("opround".into(), vec![r.into().into()]),
+            modifier: None,
+        })
+    }
+    pub fn union(self, other: Self) -> Self {
+        Self::Operator(Operator {
+            nodes: vec![self, other],
+            call: WgslCall::new("opunion".into(), vec![]),
+            modifier: None,
+        })
+    }
+    pub fn smooth_union(self, other: Self, k: impl Into<ConstOrUniform<f32>>) -> Self {
+        Self::Operator(Operator {
+            nodes: vec![self, other],
+            call: WgslCall::new("opsmoothunion".into(), vec![k.into().into()]),
+            modifier: None,
         })
     }
 }
