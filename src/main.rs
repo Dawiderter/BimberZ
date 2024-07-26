@@ -63,6 +63,12 @@ fn main() {
             scene.shape = sdbox(half_diag)
                 .rounded(0.5)
                 .smooth_union(sdsphere(1.0).translated(vec3(-1.5, 0.0, 0.0)), 0.25)
+                .smooth_union(
+                    sdbox(vec3(0.8, 0.8, 0.8))
+                        .translated(vec3(0.0, 1.5, 0.0))
+                        .rounded(0.2),
+                    0.1,
+                )
                 .rotated(rotation)
                 .translated(translation);
             scene.has_changed = true;

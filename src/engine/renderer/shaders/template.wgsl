@@ -4,13 +4,6 @@ struct VertexOutput {
     @location(0) uv: vec2<f32>,
 };
 
-// This should work but naga's OpenGL backend ignores alignment
-// So we need to manually insert padding
-// struct UserData {
-//     @align(16) color: f32,
-//     @align(16) color_mul: f32
-// }
-
 struct UserData {
     {{USER_DATA}}
 }

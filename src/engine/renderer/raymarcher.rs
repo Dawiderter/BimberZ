@@ -240,6 +240,12 @@ impl Raymarcher {
                 UniformValue::Quat(_) => "vec4f",
             };
             writeln!(desc, "s{i} : {kind},").unwrap();
+            // This should work but naga's OpenGL backend ignores alignment
+            // So we need to manually insert padding
+            // struct UserData {
+            //     @align(16) color: f32,
+            //     @align(16) color_mul: f32
+            // }
             let padding_left = (UNIFORM_SIZE - size) / 4;
             for _ in 0..padding_left {
                 writeln!(desc, "_p : u32,").unwrap();
