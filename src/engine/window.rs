@@ -93,7 +93,7 @@ impl Window {
                         event: WindowEvent::Resized(new_size),
                         ..
                     } => {
-                        self.renderer.ctx.resize(new_size);
+                        self.renderer.resize_surface(new_size);
                     }
                     Event::AboutToWait => {
                         // Application update code.
@@ -135,15 +135,12 @@ impl Window {
                             egui_ctx.tessellate(egui_output.shapes, egui_output.pixels_per_point);
 
                         self.renderer.prepare_egui(
-                            &clipped_primitives,
-                            &egui_output.textures_delta,
+                            clipped_primitives,
+                            egui_output.textures_delta,
                             egui_output.pixels_per_point,
                         );
 
-                        match self
-                            .renderer
-                            .render_routine(&clipped_primitives, egui_output.pixels_per_point)
-                        {
+                        match self.renderer.render_routine() {
                             Ok(_) => {}
                             Err(wgpu::SurfaceError::Lost) => {}
                             Err(wgpu::SurfaceError::OutOfMemory) => elwt.exit(),

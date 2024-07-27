@@ -1,19 +1,22 @@
 pub mod context;
+pub mod egui_integration;
 pub mod raymarcher;
 pub mod scene;
 pub mod uniforms;
 
 use context::GraphicsContext;
+use egui_integration::BimberzEgui;
 use raymarcher::Raymarcher;
 use scene::Scene;
 use uniforms::Uniforms;
+use winit::dpi::PhysicalSize;
 
 pub struct Renderer {
-    pub ctx: GraphicsContext,
-    pub raymarcher: Raymarcher,
     pub uniforms: Uniforms,
     pub scene: Scene,
-    pub egui: egui_wgpu::Renderer,
+    ctx: GraphicsContext,
+    raymarcher: Raymarcher,
+    egui: BimberzEgui,
 }
 
 impl Renderer {
@@ -21,7 +24,7 @@ impl Renderer {
         let raymarcher = Raymarcher::new(&mut ctx);
         let uniforms = Uniforms::new();
         let scene = Scene::new();
-        let egui = egui_wgpu::Renderer::new(&ctx.device, ctx.surface_format, None, 1, false);
+        let egui = BimberzEgui::new(&mut ctx);
 
         Self {
             ctx,
@@ -32,49 +35,23 @@ impl Renderer {
         }
     }
 
-    pub fn prepare_egui(
-        &mut self,
-        shapes: &[egui::ClippedPrimitive],
-        textures_delta: &egui::TexturesDelta,
-        pixels_per_point: f32,
-    ) {
-        let mut encoder = self
-            .ctx
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("BimberZ Egui Drawing"),
-            });
-
-        self.egui.update_buffers(
-            &self.ctx.device,
-            &self.ctx.queue,
-            &mut encoder,
-            shapes,
-            &egui_wgpu::ScreenDescriptor {
-                size_in_pixels: [600, 600],
-                pixels_per_point,
-            },
-        );
-
-        for (texture_id, delta) in &textures_delta.set {
-            self.egui
-                .update_texture(&self.ctx.device, &self.ctx.queue, *texture_id, delta)
-        }
-
-        for texture_id in &textures_delta.free {
-            self.egui.free_texture(texture_id);
-        }
-
-        self.ctx.queue.submit(std::iter::once(encoder.finish()));
+    pub fn resize_surface(&mut self, new_size: PhysicalSize<u32>) {
+        self.ctx.resize(new_size);
+        self.egui.screen_descriptor.size_in_pixels = [new_size.width, new_size.height];
     }
 
-    pub fn render_routine(
+    pub fn prepare_egui(
         &mut self,
-        shapes: &[egui::ClippedPrimitive],
+        shapes: Vec<egui::ClippedPrimitive>,
+        textures_delta: egui::TexturesDelta,
         pixels_per_point: f32,
-    ) -> Result<(), wgpu::SurfaceError> {
-        self.prepare();
+    ) {
+        self.egui.paint_jobs = shapes;
+        self.egui.textures_delta = textures_delta;
+        self.egui.screen_descriptor.pixels_per_point = pixels_per_point;
+    }
 
+    pub fn render_routine(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.ctx.surface.get_current_texture()?;
         let view = output
             .texture
@@ -86,6 +63,10 @@ impl Renderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("BimberZ Main Routine Encoder"),
             });
+
+        self.raymarcher
+            .prepare(&mut self.ctx, &mut self.uniforms, &mut self.scene);
+        self.egui.prepare(&mut self.ctx, &mut encoder);
 
         encoder.push_debug_group("Render Routine");
 
@@ -105,16 +86,8 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            self.render(&mut rpass);
-
-            self.egui.render(
-                &mut rpass,
-                shapes,
-                &egui_wgpu::ScreenDescriptor {
-                    size_in_pixels: [600, 600],
-                    pixels_per_point,
-                },
-            );
+            self.raymarcher.render(&mut rpass);
+            self.egui.render(&mut rpass);
         }
 
         encoder.pop_debug_group();
@@ -122,15 +95,8 @@ impl Renderer {
         self.ctx.queue.submit(std::iter::once(encoder.finish()));
         output.present();
 
+        self.egui.free();
+
         Ok(())
-    }
-
-    fn prepare(&mut self) {
-        self.raymarcher
-            .prepare(&mut self.ctx, &mut self.uniforms, &mut self.scene);
-    }
-
-    fn render(&mut self, rpass: &mut wgpu::RenderPass) {
-        self.raymarcher.render(rpass);
     }
 }
