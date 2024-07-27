@@ -3,11 +3,12 @@ use std::sync::Arc;
 use tracing::info;
 
 pub struct GraphicsContext {
-    pub surface: wgpu::Surface<'static>,
-    pub device: wgpu::Device,
-    pub queue: wgpu::Queue,
-    pub config: wgpu::SurfaceConfiguration,
-    pub size: winit::dpi::PhysicalSize<u32>,
+    pub(super) surface: wgpu::Surface<'static>,
+    pub(super) device: wgpu::Device,
+    pub(super) queue: wgpu::Queue,
+    pub(super) config: wgpu::SurfaceConfiguration,
+    pub(super) size: winit::dpi::PhysicalSize<u32>,
+    pub(super) surface_format: wgpu::TextureFormat,
 }
 
 impl GraphicsContext {
@@ -65,6 +66,7 @@ impl GraphicsContext {
             queue,
             config,
             size,
+            surface_format,
         }
     }
 

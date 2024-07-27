@@ -12,6 +12,7 @@ use super::{
 pub struct Window {
     inner: Arc<winit::window::Window>,
     event_loop: winit::event_loop::EventLoop<()>,
+    egui_state: egui_winit::State,
     fps_counter: FPSCounter,
     renderer: Renderer,
     input: Input,
@@ -46,11 +47,20 @@ impl Window {
         let renderer = Renderer::new(ctx);
         let input = Input::new();
 
+        let egui_state = egui_winit::State::new(
+            egui::Context::default(),
+            egui::ViewportId::ROOT,
+            &window,
+            None,
+            None,
+        );
+
         Self {
             inner: window,
             event_loop,
             renderer,
             input,
+            egui_state,
             fps_counter: FPSCounter::new(),
         }
     }
@@ -62,6 +72,14 @@ impl Window {
         self.event_loop
             .run(move |event, elwt| {
                 self.input.register_event(&event);
+
+                if let Event::WindowEvent { event, .. } = &event {
+                    let response = self.egui_state.on_window_event(&self.inner, event);
+                    if response.consumed {
+                        tracing::info!("Egui consumed this event: {:?}", event);
+                        return;
+                    }
+                }
 
                 match event {
                     Event::WindowEvent {
@@ -97,7 +115,35 @@ impl Window {
                             &mut self.renderer.scene,
                         );
 
-                        match self.renderer.render_routine() {
+                        let mut egui_input = self.egui_state.take_egui_input(&self.inner);
+                        let egui_ctx = self.egui_state.egui_ctx();
+
+                        for viewport in egui_input.viewports.values_mut() {
+                            egui_winit::update_viewport_info(viewport, egui_ctx, &self.inner, true);
+                        }
+
+                        let egui_output = egui_ctx.run(egui_input, |ctx| {
+                            egui::Window::new("hello").show(ctx, |ui| {
+                                ui.label("Hello World");
+                                if ui.button("Click").clicked() {
+                                    tracing::info!("Clicked!");
+                                }
+                            });
+                        });
+
+                        let clipped_primitives =
+                            egui_ctx.tessellate(egui_output.shapes, egui_output.pixels_per_point);
+
+                        self.renderer.prepare_egui(
+                            &clipped_primitives,
+                            &egui_output.textures_delta,
+                            egui_output.pixels_per_point,
+                        );
+
+                        match self
+                            .renderer
+                            .render_routine(&clipped_primitives, egui_output.pixels_per_point)
+                        {
                             Ok(_) => {}
                             Err(wgpu::SurfaceError::Lost) => {}
                             Err(wgpu::SurfaceError::OutOfMemory) => elwt.exit(),
@@ -105,7 +151,11 @@ impl Window {
                                 error!("{:?}", e)
                             }
                         }
+
                         self.input.clear_tapped();
+
+                        self.egui_state
+                            .handle_platform_output(&self.inner, egui_output.platform_output);
 
                         self.fps_counter.advance_frame();
                         if self.fps_counter.curr_duration() >= std::time::Duration::from_secs(5) {

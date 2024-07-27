@@ -13,6 +13,7 @@ pub struct Renderer {
     pub raymarcher: Raymarcher,
     pub uniforms: Uniforms,
     pub scene: Scene,
+    pub egui: egui_wgpu::Renderer,
 }
 
 impl Renderer {
@@ -20,15 +21,58 @@ impl Renderer {
         let raymarcher = Raymarcher::new(&mut ctx);
         let uniforms = Uniforms::new();
         let scene = Scene::new();
+        let egui = egui_wgpu::Renderer::new(&ctx.device, ctx.surface_format, None, 1, false);
+
         Self {
             ctx,
             raymarcher,
             uniforms,
             scene,
+            egui,
         }
     }
 
-    pub fn render_routine(&mut self) -> Result<(), wgpu::SurfaceError> {
+    pub fn prepare_egui(
+        &mut self,
+        shapes: &[egui::ClippedPrimitive],
+        textures_delta: &egui::TexturesDelta,
+        pixels_per_point: f32,
+    ) {
+        let mut encoder = self
+            .ctx
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("BimberZ Egui Drawing"),
+            });
+
+        self.egui.update_buffers(
+            &self.ctx.device,
+            &self.ctx.queue,
+            &mut encoder,
+            shapes,
+            &egui_wgpu::ScreenDescriptor {
+                size_in_pixels: [600, 600],
+                pixels_per_point,
+            },
+        );
+
+        for (texture_id, delta) in &textures_delta.set {
+            self.egui
+                .update_texture(&self.ctx.device, &self.ctx.queue, *texture_id, delta)
+        }
+
+        for texture_id in &textures_delta.free {
+            self.egui.free_texture(texture_id);
+        }
+
+        self.ctx.queue.submit(std::iter::once(encoder.finish()));
+    }
+
+    pub fn render_routine(
+        &mut self,
+        shapes: &[egui::ClippedPrimitive],
+        pixels_per_point: f32,
+    ) -> Result<(), wgpu::SurfaceError> {
         self.prepare();
 
         let output = self.ctx.surface.get_current_texture()?;
@@ -62,6 +106,15 @@ impl Renderer {
             });
 
             self.render(&mut rpass);
+
+            self.egui.render(
+                &mut rpass,
+                shapes,
+                &egui_wgpu::ScreenDescriptor {
+                    size_in_pixels: [600, 600],
+                    pixels_per_point,
+                },
+            );
         }
 
         encoder.pop_debug_group();
