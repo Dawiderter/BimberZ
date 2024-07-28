@@ -22,7 +22,7 @@ fn main() {
 
     let start = Instant::now();
 
-    window.run(|input, u, scene| {
+    window.run(|input, u, scene, egui_ctx| {
         if input.is_key_pressed(KeyCode::KeyD) {
             u[radius] += 0.01;
             u[half_diag].x += 0.01;
@@ -59,24 +59,30 @@ fn main() {
             u[translation].z -= 0.01;
         }
 
-        if input.on_key_tap(KeyCode::KeyB) {
-            scene.shape = sdbox(half_diag)
-                .rounded(0.5)
-                .smooth_union(sdsphere(1.0).translated(vec3(-1.5, 0.0, 0.0)), 0.25)
-                .smooth_union(
-                    sdbox(vec3(0.8, 0.8, 0.8))
-                        .translated(vec3(0.0, 1.5, 0.0))
-                        .rounded(0.2),
-                    0.1,
-                )
-                .rotated(rotation)
-                .translated(translation);
-            scene.has_changed = true;
-        }
-        if input.on_key_tap(KeyCode::KeyC) {
-            scene.shape = sdsphere(radius).translated(translation);
-            scene.has_changed = true;
-        }
+        egui::Window::new("Inspector").show(egui_ctx, |ctx| {
+            if ctx.button("Box").clicked() {
+                scene.shape = sdbox(half_diag)
+                    .rounded(0.2)
+                    .smooth_union(sdsphere(1.0).translated(vec3(-1.5, 0.0, 0.0)), 0.25)
+                    .smooth_union(
+                        sdbox(vec3(0.4, 0.4, 0.4))
+                            .translated(vec3(0.0, 1.5, 0.0))
+                            .rounded(0.2),
+                        0.1,
+                    )
+                    .rotated(rotation)
+                    .translated(translation);
+                scene.has_changed = true;
+            }
+            if ctx.button("Sphere").clicked() {
+                scene.shape = sdsphere(radius).translated(translation);
+                scene.has_changed = true;
+            }
+        });
+
+        egui::Window::new("Hello").show(egui_ctx, |ctx| {
+            ctx.label("Hello World!");
+        });
 
         let now = start.elapsed().as_secs_f32();
 

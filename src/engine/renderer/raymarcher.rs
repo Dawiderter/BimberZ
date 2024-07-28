@@ -199,7 +199,7 @@ impl Raymarcher {
                     module: fragment_shader,
                     entry_point: "fs_main",
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: ctx.config.format,
+                        format: ctx.surface_format,
                         blend: Some(wgpu::BlendState::REPLACE),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],

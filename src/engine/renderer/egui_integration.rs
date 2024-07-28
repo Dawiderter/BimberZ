@@ -13,7 +13,7 @@ impl BimberzEgui {
 
         let paint_jobs = Vec::new();
         let textures_delta = egui::TexturesDelta::default();
-        let size = [ctx.size.width, ctx.size.height];
+        let size = [0, 0];
         let screen_descriptor = egui_wgpu::ScreenDescriptor {
             size_in_pixels: size,
             pixels_per_point: 1.0,

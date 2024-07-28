@@ -2,17 +2,17 @@ use std::sync::Arc;
 
 use tracing::info;
 
+use super::viewport::ViewportSurface;
+
 pub struct GraphicsContext {
-    pub(super) surface: wgpu::Surface<'static>,
+    pub(super) instance: wgpu::Instance,
     pub(super) device: wgpu::Device,
     pub(super) queue: wgpu::Queue,
-    pub(super) config: wgpu::SurfaceConfiguration,
-    pub(super) size: winit::dpi::PhysicalSize<u32>,
     pub(super) surface_format: wgpu::TextureFormat,
 }
 
 impl GraphicsContext {
-    pub async fn new(window: Arc<winit::window::Window>) -> Self {
+    pub async fn new(window: Arc<winit::window::Window>) -> (Self, ViewportSurface) {
         let size = window.inner_size();
         let instance = wgpu::Instance::default();
         let surface = instance.create_surface(window).unwrap();
@@ -25,7 +25,7 @@ impl GraphicsContext {
             .await
             .unwrap();
 
-        info!("{:?}", adapter.get_info());
+        info!("Chosen adapter {:?}", adapter.get_info());
 
         let (device, queue) = adapter
             .request_device(
@@ -60,22 +60,44 @@ impl GraphicsContext {
 
         surface.configure(&device, &config);
 
-        Self {
-            surface,
+        let ctx = Self {
             device,
+            instance,
             queue,
+            surface_format,
+        };
+
+        let viewport = ViewportSurface {
+            surface,
             config,
             size,
-            surface_format,
-        }
+        };
+
+        (ctx, viewport)
     }
 
-    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
-        if new_size.width > 0 && new_size.height > 0 {
-            self.size = new_size;
-            self.config.width = new_size.width;
-            self.config.height = new_size.height;
-            self.surface.configure(&self.device, &self.config);
+    pub fn create_surface(&self, window: Arc<winit::window::Window>) -> ViewportSurface {
+        let size = window.inner_size();
+
+        let surface = self.instance.create_surface(window).unwrap();
+
+        let config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: self.surface_format,
+            width: size.width,
+            height: size.height,
+            present_mode: wgpu::PresentMode::AutoVsync,
+            alpha_mode: wgpu::CompositeAlphaMode::Auto,
+            view_formats: vec![],
+            desired_maximum_frame_latency: 2,
+        };
+
+        surface.configure(&self.device, &config);
+
+        ViewportSurface {
+            surface,
+            config,
+            size,
         }
     }
 }
