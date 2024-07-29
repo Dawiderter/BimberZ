@@ -19,9 +19,10 @@ pub struct Viewport {
 
 pub struct Window {
     viewports: HashMap<winit::window::WindowId, Viewport>,
-    main_window: winit::window::WindowId,
+    egui_state: HashMap<winit::window::WindowId, egui_winit::State>,
+    egui_viewports: HashMap<egui::ViewportId, winit::window::WindowId>,
+    main_window_id: winit::window::WindowId,
     event_loop: winit::event_loop::EventLoop<()>,
-    egui_state: egui_winit::State,
     fps_counter: FPSCounter,
     renderer: Renderer,
     input: Input,
@@ -53,46 +54,40 @@ impl Window {
         );
 
         let (ctx, main_viewport_surface) = GraphicsContext::new(window.clone()).await;
-        let secondary_window = Arc::new(
-            winit::window::WindowBuilder::new()
-                .with_title("Hello World")
-                .with_inner_size(winit::dpi::PhysicalSize::new(400, 400))
-                .with_resizable(false)
-                .build(&event_loop)
-                .unwrap(),
-        );
-        let secondary_viewport = Viewport {
-            window: secondary_window.clone(),
-            surface: ctx.create_surface(secondary_window.clone()),
-        };
 
         let renderer = Renderer::new(ctx);
         let input = Input::new();
 
         let egui_ctx = egui::Context::default();
+        egui_ctx.set_embed_viewports(false);
         egui_ctx.set_zoom_factor(0.7);
 
-        let egui_state =
-            egui_winit::State::new(egui_ctx, egui::ViewportId::ROOT, &window, None, None);
+        let main_egui_state = egui_winit::State::new(
+            egui_ctx.clone(),
+            egui::ViewportId::ROOT,
+            &window,
+            None,
+            None,
+        );
 
-        let main_window = window.id();
+        let main_window_id = window.id();
         let main_viewport = Viewport {
             window,
             surface: main_viewport_surface,
         };
 
-        let viewports = HashMap::from([
-            (main_window, main_viewport),
-            (secondary_window.id(), secondary_viewport),
-        ]);
+        let viewports = HashMap::from([(main_window_id, main_viewport)]);
+        let egui_state = HashMap::from([(main_window_id, main_egui_state)]);
+        let egui_viewports = HashMap::from([(egui::ViewportId::ROOT, main_window_id)]);
 
         Self {
             event_loop,
             renderer,
             input,
             egui_state,
-            main_window,
+            main_window_id,
             viewports,
+            egui_viewports,
             fps_counter: FPSCounter::new(),
         }
     }
@@ -106,6 +101,8 @@ impl Window {
                 if let Event::WindowEvent { event, window_id } = &event {
                     let response = self
                         .egui_state
+                        .get_mut(window_id)
+                        .unwrap()
                         .on_window_event(&self.viewports[window_id].window, event);
                     if response.consumed {
                         tracing::info!("Egui consumed this event: {:?}", event);
@@ -149,21 +146,28 @@ impl Window {
                         event: WindowEvent::RedrawRequested,
                         window_id,
                     } => {
-                        if window_id == self.main_window {
+                        if window_id == self.main_window_id {
                             let viewport = &self.viewports[&window_id];
 
-                            let mut egui_input = self.egui_state.take_egui_input(&viewport.window);
-                            let egui_ctx = self.egui_state.egui_ctx();
+                            let mut egui_input = self
+                                .egui_state
+                                .get_mut(&window_id)
+                                .unwrap()
+                                .take_egui_input(&viewport.window);
+
+                            let egui_ctx = self.egui_state[&window_id].egui_ctx().clone();
+
                             self.fps_counter.advance_frame();
 
-                            for egui_viewport in egui_input.viewports.values_mut() {
-                                egui_winit::update_viewport_info(
-                                    egui_viewport,
-                                    egui_ctx,
-                                    &viewport.window,
-                                    true,
-                                );
-                            }
+                            egui_winit::update_viewport_info(
+                                egui_input
+                                    .viewports
+                                    .get_mut(&egui_input.viewport_id)
+                                    .unwrap(),
+                                &egui_ctx,
+                                &viewport.window,
+                                true,
+                            );
 
                             let egui_output = egui_ctx.run(egui_input, |ctx| {
                                 f(
@@ -179,6 +183,22 @@ impl Window {
                                         self.fps_counter.reset();
                                     }
                                 });
+
+                                ctx.show_viewport_deferred(
+                                    egui::ViewportId::from_hash_of("Secondary"),
+                                    egui::ViewportBuilder::default()
+                                        .with_title("Diagnostics")
+                                        .with_inner_size((400.0, 300.0)),
+                                    move |_, _| {},
+                                );
+
+                                ctx.show_viewport_deferred(
+                                    egui::ViewportId::from_hash_of("Tertiary"),
+                                    egui::ViewportBuilder::default()
+                                        .with_title("Diagnostics 2")
+                                        .with_inner_size((500.0, 300.0)),
+                                    move |_, _| {},
+                                );
                             });
 
                             let clipped_primitives = egui_ctx
@@ -202,30 +222,82 @@ impl Window {
 
                             self.input.clear_tapped();
 
-                            self.egui_state.handle_platform_output(
-                                &viewport.window,
-                                egui_output.platform_output,
-                            );
+                            self.egui_state
+                                .get_mut(&window_id)
+                                .unwrap()
+                                .handle_platform_output(
+                                    &viewport.window,
+                                    egui_output.platform_output,
+                                );
+
+                            for (id, output) in egui_output.viewport_output {
+                                if let std::collections::hash_map::Entry::Vacant(entry) =
+                                    self.egui_viewports.entry(id)
+                                {
+                                    let window = Arc::new(
+                                        egui_winit::create_window(&egui_ctx, elwt, &output.builder)
+                                            .unwrap(),
+                                    );
+                                    let window_id = window.id();
+                                    let state = egui_winit::State::new(
+                                        egui_ctx.clone(),
+                                        id,
+                                        &window,
+                                        None,
+                                        None,
+                                    );
+                                    let surface = self.renderer.ctx.create_surface(window.clone());
+                                    self.egui_state.insert(window_id, state);
+                                    self.viewports
+                                        .insert(window_id, Viewport { window, surface });
+                                    entry.insert(window_id);
+                                }
+                            }
                         } else {
                             let viewport = &self.viewports[&window_id];
 
-                            let mut egui_input = self.egui_state.take_egui_input(&viewport.window);
-                            let egui_ctx = self.egui_state.egui_ctx();
+                            let mut egui_input = self
+                                .egui_state
+                                .get_mut(&window_id)
+                                .unwrap()
+                                .take_egui_input(&viewport.window);
+                            let egui_ctx = self.egui_state[&window_id].egui_ctx();
 
-                            for egui_viewport in egui_input.viewports.values_mut() {
-                                egui_winit::update_viewport_info(
-                                    egui_viewport,
-                                    egui_ctx,
-                                    &viewport.window,
-                                    true,
-                                );
-                            }
+                            egui_winit::update_viewport_info(
+                                egui_input
+                                    .viewports
+                                    .get_mut(&egui_input.viewport_id)
+                                    .unwrap(),
+                                egui_ctx,
+                                &viewport.window,
+                                true,
+                            );
 
-                            let egui_output = egui_ctx.run(egui_input, |ctx| {
-                                egui::Window::new("Hello").show(ctx, |ui| {
-                                    ui.label("Hello world!");
-                                });
-                            });
+                            let egui_output = if egui_input.viewport_id
+                                == egui::ViewportId::from_hash_of("Secondary")
+                            {
+                                egui_ctx.run(egui_input, |ctx| {
+                                    egui::Window::new("Hello").show(ctx, |ui| {
+                                        ui.label("Hello world!");
+                                    });
+                                    egui::Window::new("What is happening???").show(ctx, |ui| {
+                                        if ui.button("Why?").clicked() {
+                                            tracing::info!("Clicked!");
+                                        }
+                                    });
+                                })
+                            } else {
+                                egui_ctx.run(egui_input, |ctx| {
+                                    egui::Window::new("Okay").show(ctx, |ui| {
+                                        ui.label("Hello world!");
+                                    });
+                                    egui::Window::new("Interesting").show(ctx, |ui| {
+                                        if ui.button("Why?").clicked() {
+                                            tracing::info!("Clicked!");
+                                        }
+                                    });
+                                })
+                            };
 
                             let clipped_primitives = egui_ctx
                                 .tessellate(egui_output.shapes, egui_output.pixels_per_point);
@@ -246,10 +318,13 @@ impl Window {
                                 }
                             }
 
-                            self.egui_state.handle_platform_output(
-                                &viewport.window,
-                                egui_output.platform_output,
-                            );
+                            self.egui_state
+                                .get_mut(&window_id)
+                                .unwrap()
+                                .handle_platform_output(
+                                    &viewport.window,
+                                    egui_output.platform_output,
+                                );
                         }
                     }
                     _ => (),

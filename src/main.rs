@@ -80,10 +80,6 @@ fn main() {
             }
         });
 
-        egui::Window::new("Hello").show(egui_ctx, |ctx| {
-            ctx.label("Hello World!");
-        });
-
         let now = start.elapsed().as_secs_f32();
 
         u[rotation] = Quat::from_euler(glam::EulerRot::XYZ, now / 3.0, now / 4.0, now / 2.0);
