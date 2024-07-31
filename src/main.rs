@@ -1,4 +1,7 @@
-use std::time::Instant;
+use std::{
+    sync::{Arc, Mutex},
+    time::Instant,
+};
 
 use bimberz::engine::{
     renderer::scene::{sdbox, sdsphere},
@@ -21,6 +24,9 @@ fn main() {
     window.scene().shape = sdsphere(radius).translated(translation);
 
     let start = Instant::now();
+
+    let mut show_window = Arc::new(Mutex::new(false));
+    let mut window_name = Arc::new(Mutex::new("Test".to_string()));
 
     window.run(|input, u, scene, egui_ctx| {
         if input.is_key_pressed(KeyCode::KeyD) {
@@ -79,6 +85,39 @@ fn main() {
                 scene.has_changed = true;
             }
         });
+
+        let check_clone = show_window.clone();
+        let name_clone = window_name.clone();
+        egui_ctx.show_viewport_deferred(
+            egui::ViewportId::from_hash_of("Contorl"),
+            egui::ViewportBuilder::default()
+                .with_title("Control")
+                .with_inner_size((200.0, 200.0)),
+            move |ctx, _| {
+                egui::Window::new("Control").show(ctx, |ui| {
+                    let mut check = *check_clone.lock().unwrap();
+                    let mut name = name_clone.lock().unwrap().clone();
+                    ui.checkbox(&mut check, "Show window?");
+                    ui.text_edit_singleline(&mut name);
+                    *check_clone.lock().unwrap() = check;
+                    *name_clone.lock().unwrap() = name;
+                });
+            },
+        );
+
+        if *show_window.lock().unwrap() {
+            egui_ctx.show_viewport_deferred(
+                egui::ViewportId::from_hash_of("Tertiary"),
+                egui::ViewportBuilder::default()
+                    .with_title(window_name.lock().unwrap().clone())
+                    .with_inner_size((200.0, 200.0)),
+                move |ctx, _| {
+                    egui::Window::new("Oh it worked").show(ctx, |ui| {
+                        ui.label("Yay");
+                    });
+                },
+            );
+        }
 
         let now = start.elapsed().as_secs_f32();
 

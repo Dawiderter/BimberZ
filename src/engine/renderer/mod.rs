@@ -6,7 +6,7 @@ pub mod uniforms;
 pub mod viewport;
 
 use context::GraphicsContext;
-use egui_integration::BimberzEgui;
+use egui_integration::BimberzEguiRenderer;
 use raymarcher::Raymarcher;
 use scene::Scene;
 use uniforms::Uniforms;
@@ -17,7 +17,7 @@ pub struct Renderer {
     pub scene: Scene,
     pub ctx: GraphicsContext,
     raymarcher: Raymarcher,
-    egui: BimberzEgui,
+    egui: BimberzEguiRenderer,
 }
 
 impl Renderer {
@@ -25,7 +25,7 @@ impl Renderer {
         let raymarcher = Raymarcher::new(&mut ctx);
         let uniforms = Uniforms::new();
         let scene = Scene::new();
-        let egui = BimberzEgui::new(&mut ctx);
+        let egui = BimberzEguiRenderer::new(&mut ctx);
 
         Self {
             ctx,

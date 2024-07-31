@@ -1,13 +1,13 @@
 use super::context::GraphicsContext;
 
-pub struct BimberzEgui {
+pub struct BimberzEguiRenderer {
     pub(super) renderer: egui_wgpu::Renderer,
     pub(super) paint_jobs: Vec<egui::ClippedPrimitive>,
     pub(super) textures_delta: egui::TexturesDelta,
     pub(super) screen_descriptor: egui_wgpu::ScreenDescriptor,
 }
 
-impl BimberzEgui {
+impl BimberzEguiRenderer {
     pub(super) fn new(ctx: &mut GraphicsContext) -> Self {
         let renderer = egui_wgpu::Renderer::new(&ctx.device, ctx.surface_format, None, 1, false);
 

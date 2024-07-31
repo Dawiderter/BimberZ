@@ -4,6 +4,7 @@ use tracing::{error, info};
 use winit::event::{Event, WindowEvent};
 
 use super::{
+    egui_integration::{BimberzEguiState, BimberzEguiViewport},
     fps_counter::FPSCounter,
     input::Input,
     renderer::{
@@ -13,19 +14,18 @@ use super::{
 };
 
 pub struct Viewport {
-    window: Arc<winit::window::Window>,
-    surface: ViewportSurface,
+    pub window: Arc<winit::window::Window>,
+    pub surface: ViewportSurface,
 }
 
 pub struct Window {
     viewports: HashMap<winit::window::WindowId, Viewport>,
-    egui_state: HashMap<winit::window::WindowId, egui_winit::State>,
-    egui_viewports: HashMap<egui::ViewportId, winit::window::WindowId>,
     main_window_id: winit::window::WindowId,
     event_loop: winit::event_loop::EventLoop<()>,
     fps_counter: FPSCounter,
     renderer: Renderer,
     input: Input,
+    egui_state: BimberzEguiState,
 }
 
 impl Window {
@@ -58,17 +58,7 @@ impl Window {
         let renderer = Renderer::new(ctx);
         let input = Input::new();
 
-        let egui_ctx = egui::Context::default();
-        egui_ctx.set_embed_viewports(false);
-        egui_ctx.set_zoom_factor(0.7);
-
-        let main_egui_state = egui_winit::State::new(
-            egui_ctx.clone(),
-            egui::ViewportId::ROOT,
-            &window,
-            None,
-            None,
-        );
+        let egui_state = BimberzEguiState::from_root(window.clone());
 
         let main_window_id = window.id();
         let main_viewport = Viewport {
@@ -77,8 +67,6 @@ impl Window {
         };
 
         let viewports = HashMap::from([(main_window_id, main_viewport)]);
-        let egui_state = HashMap::from([(main_window_id, main_egui_state)]);
-        let egui_viewports = HashMap::from([(egui::ViewportId::ROOT, main_window_id)]);
 
         Self {
             event_loop,
@@ -87,7 +75,6 @@ impl Window {
             egui_state,
             main_window_id,
             viewports,
-            egui_viewports,
             fps_counter: FPSCounter::new(),
         }
     }
@@ -99,17 +86,14 @@ impl Window {
         self.event_loop
             .run(move |event, elwt| {
                 if let Event::WindowEvent { event, window_id } = &event {
-                    let response = self
-                        .egui_state
-                        .get_mut(window_id)
-                        .unwrap()
-                        .on_window_event(&self.viewports[window_id].window, event);
+                    let response = self.egui_state.apply_event(window_id, event);
                     if response.consumed {
                         tracing::info!("Egui consumed this event: {:?}", event);
                         return;
                     }
                 }
 
+                // TODO: Make input register only main window events
                 self.input.register_event(&event);
 
                 match event {
@@ -117,6 +101,7 @@ impl Window {
                         event: WindowEvent::CloseRequested,
                         ..
                     } => {
+                        // TODO: Close only one window instead of the whole app
                         info!("The close button was pressed; stopping");
                         elwt.exit();
                     }
@@ -124,6 +109,7 @@ impl Window {
                         event: WindowEvent::Resized(new_size),
                         window_id,
                     } => {
+                        // TODO: Apply new surface configurations before drawing, not on every resize
                         self.viewports
                             .get_mut(&window_id)
                             .unwrap()
@@ -131,13 +117,7 @@ impl Window {
                             .resize(&self.renderer.ctx, new_size);
                     }
                     Event::AboutToWait => {
-                        // Application update code.
-
-                        // Queue a RedrawRequested event.
-                        //
-                        // You only need to call this if you've determined that you need to redraw, in
-                        // applications which do not always need to. Applications that redraw continuously
-                        // can just render here instead.
+                        // IMPROVEMENT: Maybe don't redraw windows that don't need it
                         for viewport in self.viewports.values() {
                             viewport.window.request_redraw();
                         }
@@ -149,25 +129,11 @@ impl Window {
                         if window_id == self.main_window_id {
                             let viewport = &self.viewports[&window_id];
 
-                            let mut egui_input = self
-                                .egui_state
-                                .get_mut(&window_id)
-                                .unwrap()
-                                .take_egui_input(&viewport.window);
+                            let egui_input = self.egui_state.take_input(&window_id);
 
-                            let egui_ctx = self.egui_state[&window_id].egui_ctx().clone();
+                            let egui_ctx = &self.egui_state.ctx;
 
                             self.fps_counter.advance_frame();
-
-                            egui_winit::update_viewport_info(
-                                egui_input
-                                    .viewports
-                                    .get_mut(&egui_input.viewport_id)
-                                    .unwrap(),
-                                &egui_ctx,
-                                &viewport.window,
-                                true,
-                            );
 
                             let egui_output = egui_ctx.run(egui_input, |ctx| {
                                 f(
@@ -189,15 +155,17 @@ impl Window {
                                     egui::ViewportBuilder::default()
                                         .with_title("Diagnostics")
                                         .with_inner_size((400.0, 300.0)),
-                                    move |_, _| {},
-                                );
-
-                                ctx.show_viewport_deferred(
-                                    egui::ViewportId::from_hash_of("Tertiary"),
-                                    egui::ViewportBuilder::default()
-                                        .with_title("Diagnostics 2")
-                                        .with_inner_size((500.0, 300.0)),
-                                    move |_, _| {},
+                                    move |ctx, _| {
+                                        egui::Window::new("Hello").show(ctx, |ui| {
+                                            ui.label("Hello world!");
+                                        });
+                                        egui::Window::new("Hello from another place").show(
+                                            ctx,
+                                            |ui| {
+                                                ui.label("Hello world!");
+                                            },
+                                        );
+                                    },
                                 );
                             });
 
@@ -223,79 +191,56 @@ impl Window {
                             self.input.clear_tapped();
 
                             self.egui_state
-                                .get_mut(&window_id)
-                                .unwrap()
-                                .handle_platform_output(
-                                    &viewport.window,
-                                    egui_output.platform_output,
-                                );
+                                .handle_platform_output(&window_id, egui_output.platform_output);
 
-                            for (id, output) in egui_output.viewport_output {
-                                if let std::collections::hash_map::Entry::Vacant(entry) =
-                                    self.egui_viewports.entry(id)
-                                {
-                                    let window = Arc::new(
-                                        egui_winit::create_window(&egui_ctx, elwt, &output.builder)
-                                            .unwrap(),
-                                    );
-                                    let window_id = window.id();
-                                    let state = egui_winit::State::new(
-                                        egui_ctx.clone(),
-                                        id,
-                                        &window,
-                                        None,
-                                        None,
-                                    );
-                                    let surface = self.renderer.ctx.create_surface(window.clone());
-                                    self.egui_state.insert(window_id, state);
-                                    self.viewports
-                                        .insert(window_id, Viewport { window, surface });
-                                    entry.insert(window_id);
-                                }
+                            let egui_viewport_delta = self
+                                .egui_state
+                                .handle_viewport_output(egui_output.viewport_output, elwt);
+
+                            // TODO: Delay window creation and deletion to avoid crashing when trying to handle already queued events related to this window
+                            for window in egui_viewport_delta.added {
+                                let surface = self.renderer.ctx.create_surface(window.clone());
+                                self.viewports
+                                    .insert(window.id(), Viewport { window, surface });
+                            }
+                            for window in egui_viewport_delta.removed {
+                                self.viewports.remove(&window.id());
+                                assert!(Arc::strong_count(&window) == 1);
                             }
                         } else {
-                            let viewport = &self.viewports[&window_id];
+                            // HACK: Fix by doing above TODO
+                            let Some(viewport) = self.viewports.get(&window_id) else {
+                                info!("Window not found");
+                                return;
+                            };
 
-                            let mut egui_input = self
-                                .egui_state
-                                .get_mut(&window_id)
-                                .unwrap()
-                                .take_egui_input(&viewport.window);
-                            let egui_ctx = self.egui_state[&window_id].egui_ctx();
-
-                            egui_winit::update_viewport_info(
-                                egui_input
-                                    .viewports
-                                    .get_mut(&egui_input.viewport_id)
-                                    .unwrap(),
-                                egui_ctx,
-                                &viewport.window,
-                                true,
-                            );
+                            let mut egui_input = self.egui_state.take_input(&window_id);
+                            if let Some(new_window) =
+                                self.egui_state
+                                    .apply_prev_output(&window_id, &mut egui_input, elwt)
+                            {
+                                self.viewports.remove(&window_id);
+                                let surface = self.renderer.ctx.create_surface(new_window.clone());
+                                self.viewports.insert(
+                                    new_window.id(),
+                                    Viewport {
+                                        window: new_window,
+                                        surface,
+                                    },
+                                );
+                                return;
+                            }
+                            let egui_ctx = &self.egui_state.ctx;
 
                             let egui_output = if egui_input.viewport_id
                                 == egui::ViewportId::from_hash_of("Secondary")
                             {
-                                egui_ctx.run(egui_input, |ctx| {
-                                    egui::Window::new("Hello").show(ctx, |ui| {
-                                        ui.label("Hello world!");
-                                    });
-                                    egui::Window::new("What is happening???").show(ctx, |ui| {
-                                        if ui.button("Why?").clicked() {
-                                            tracing::info!("Clicked!");
-                                        }
-                                    });
+                                egui_ctx.run(egui_input, |_| {
+                                    self.egui_state.call(&window_id);
                                 })
                             } else {
-                                egui_ctx.run(egui_input, |ctx| {
-                                    egui::Window::new("Okay").show(ctx, |ui| {
-                                        ui.label("Hello world!");
-                                    });
-                                    egui::Window::new("Interesting").show(ctx, |ui| {
-                                        if ui.button("Why?").clicked() {
-                                            tracing::info!("Clicked!");
-                                        }
-                                    });
+                                egui_ctx.run(egui_input, |_| {
+                                    self.egui_state.call(&window_id);
                                 })
                             };
 
@@ -319,12 +264,7 @@ impl Window {
                             }
 
                             self.egui_state
-                                .get_mut(&window_id)
-                                .unwrap()
-                                .handle_platform_output(
-                                    &viewport.window,
-                                    egui_output.platform_output,
-                                );
+                                .handle_platform_output(&window_id, egui_output.platform_output);
                         }
                     }
                     _ => (),
