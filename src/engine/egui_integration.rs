@@ -190,9 +190,7 @@ impl BimberzEguiViewport {
 
         let ctx = self.state.egui_ctx();
 
-        let Some(prev_output) = &self.prev_frame_output else {
-            return None;
-        };
+        let prev_output = &self.prev_frame_output.as_ref()?;
 
         if self.needs_recreating {
             let window =

@@ -4,7 +4,7 @@ use tracing::{error, info};
 use winit::event::{Event, WindowEvent};
 
 use super::{
-    egui_integration::{BimberzEguiState, BimberzEguiViewport},
+    egui_integration::BimberzEguiState,
     fps_counter::FPSCounter,
     input::Input,
     renderer::{
@@ -143,29 +143,12 @@ impl Window {
                                     ctx,
                                 );
 
-                                egui::Window::new("FPS").show(ctx, |ui| {
-                                    ui.label(format!("FPS: {:.1}", self.fps_counter.fps()));
-                                    if self.fps_counter.curr_duration().as_secs() >= 5 {
-                                        self.fps_counter.reset();
-                                    }
-                                });
-
                                 ctx.show_viewport_deferred(
-                                    egui::ViewportId::from_hash_of("Secondary"),
+                                    egui::ViewportId::from_hash_of("Diagnostics"),
                                     egui::ViewportBuilder::default()
                                         .with_title("Diagnostics")
                                         .with_inner_size((400.0, 300.0)),
-                                    move |ctx, _| {
-                                        egui::Window::new("Hello").show(ctx, |ui| {
-                                            ui.label("Hello world!");
-                                        });
-                                        egui::Window::new("Hello from another place").show(
-                                            ctx,
-                                            |ui| {
-                                                ui.label("Hello world!");
-                                            },
-                                        );
-                                    },
+                                    move |_, _| {},
                                 );
                             });
 
@@ -233,10 +216,15 @@ impl Window {
                             let egui_ctx = &self.egui_state.ctx;
 
                             let egui_output = if egui_input.viewport_id
-                                == egui::ViewportId::from_hash_of("Secondary")
+                                == egui::ViewportId::from_hash_of("Diagnostics")
                             {
-                                egui_ctx.run(egui_input, |_| {
-                                    self.egui_state.call(&window_id);
+                                egui_ctx.run(egui_input, |ctx| {
+                                    egui::Window::new("FPS").show(ctx, |ui| {
+                                        ui.label(format!("FPS: {:.1}", self.fps_counter.fps()));
+                                        if self.fps_counter.curr_duration().as_secs() >= 5 {
+                                            self.fps_counter.reset();
+                                        }
+                                    });
                                 })
                             } else {
                                 egui_ctx.run(egui_input, |_| {
