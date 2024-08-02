@@ -50,6 +50,8 @@ impl Renderer {
     }
 
     pub fn render_routine(&mut self, viewport: &ViewportSurface) -> Result<(), wgpu::SurfaceError> {
+        puffin::profile_function!();
+
         let output = viewport.surface.get_current_texture()?;
         let view = output
             .texture
@@ -102,6 +104,8 @@ impl Renderer {
         &mut self,
         viewport: &ViewportSurface,
     ) -> Result<(), wgpu::SurfaceError> {
+        puffin::profile_function!();
+
         let output = viewport.surface.get_current_texture()?;
         let view = output
             .texture

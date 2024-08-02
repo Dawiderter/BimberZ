@@ -40,6 +40,8 @@ impl Window {
         tracing::subscriber::set_global_default(subscriber)
             .expect("setting default subscriber failed");
 
+        puffin::set_scopes_on(true);
+
         let event_loop = winit::event_loop::EventLoop::new().unwrap();
         let window = Arc::new(
             winit::window::WindowBuilder::new()
@@ -118,6 +120,7 @@ impl Window {
                     }
                     Event::AboutToWait => {
                         // IMPROVEMENT: Maybe don't redraw windows that don't need it
+                        puffin::GlobalProfiler::lock().new_frame();
                         for viewport in self.viewports.values() {
                             viewport.window.request_redraw();
                         }
@@ -127,6 +130,8 @@ impl Window {
                         window_id,
                     } => {
                         if window_id == self.main_window_id {
+                            puffin::profile_scope!("main_window");
+
                             let viewport = &self.viewports[&window_id];
 
                             let egui_input = self.egui_state.take_input(&window_id);
@@ -191,6 +196,7 @@ impl Window {
                                 assert!(Arc::strong_count(&window) == 1);
                             }
                         } else {
+                            puffin::profile_scope!("secondary_window");
                             // HACK: Fix by doing above TODO
                             let Some(viewport) = self.viewports.get(&window_id) else {
                                 info!("Window not found");
@@ -225,6 +231,7 @@ impl Window {
                                             self.fps_counter.reset();
                                         }
                                     });
+                                    puffin_egui::profiler_window(ctx);
                                 })
                             } else {
                                 egui_ctx.run(egui_input, |_| {

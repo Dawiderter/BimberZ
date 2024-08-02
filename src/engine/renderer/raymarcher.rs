@@ -82,6 +82,8 @@ impl Raymarcher {
         uniforms: &mut Uniforms,
         scene: &mut Scene,
     ) {
+        puffin::profile_function!();
+
         let buffer_size = uniforms.bytes_len();
 
         self.prep_buffer.clear();
@@ -124,6 +126,7 @@ impl Raymarcher {
 
     fn rebuild_shader(&mut self, ctx: &mut GraphicsContext) {
         tracing::info!("Rebuilding shader");
+        puffin::profile_function!();
 
         let shader_code = Self::build_shader_code(&self.user_data_desc, &self.scene_desc);
 

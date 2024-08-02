@@ -6,16 +6,22 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bytemuck = { version = "1.14.0", features = ["derive"] }
-pollster = "0.3.0"
-wgpu = "22.0"
-winit = { version = "0.29.4", features = ["rwh_05"] }
+bytemuck = { version = "1.14", features = ["derive"] }
+pollster = "0.3"
+wgpu = "22"
+winit = { version = "0.29", features = ["rwh_05"] }
 phf = { version = "0.11.2", features = ["macros"] }
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
-delegate = "0.11.0"
-glam = { version = "0.27.0", features = ["bytemuck"] }
-slotmap = "1.0.7"
+delegate = "0.11"
+glam = { version = "0.27", features = ["bytemuck"] }
+slotmap = "1.0"
+egui = "0.28"
+egui-winit = "0.28"
+egui-wgpu = "0.28"
+puffin = "0.19"
+puffin_egui = "0.29"
+
+[patch.crates-io]
 egui = { git = "https://github.com/emilk/egui.git", rev = "56df31a" }
-egui-winit = { git = "https://github.com/emilk/egui.git", rev = "56df31a" }
 egui-wgpu = { git = "https://github.com/emilk/egui.git", rev = "56df31a" }
